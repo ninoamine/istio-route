@@ -12,15 +12,16 @@ import (
 )
 
 type fakeAnalysisService struct {
-	request Request
-	err     error
-	calls   int
+	analysis model.Analysis
+	request  Request
+	err      error
+	calls    int
 }
 
 func (s *fakeAnalysisService) Analyze(_ context.Context, request Request) (model.Analysis, error) {
 	s.calls++
 	s.request = request
-	return model.Analysis{}, s.err
+	return s.analysis, s.err
 }
 
 func TestRootCommandLogsToStderr(t *testing.T) {
@@ -157,7 +158,28 @@ func TestRootCommand(t *testing.T) {
 						break
 					}
 				}
+
 			}
 		})
+	}
+}
+
+func TestRootCommandWritesAnalysisToStdout(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	service := &fakeAnalysisService{
+		analysis: model.Analysis{Hostname: "shop.example.com"},
+	}
+	command := NewRootCommand(service, stdout, stderr)
+	command.SetArgs([]string{"shop.example.com"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got, want := stdout.String(), "shop.example.com\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if got := stderr.String(); got != "" {
+		t.Errorf("stderr = %q, want empty", got)
 	}
 }

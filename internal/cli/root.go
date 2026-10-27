@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/ninoamine/istio-route/internal/model"
+	"github.com/ninoamine/istio-route/internal/render"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +16,7 @@ var (
 	ErrUsage               = errors.New("invalid command usage")
 	ErrHostnameNotFound    = errors.New("hostname not found")
 	ErrAnalysisUnavailable = errors.New("analysis service is not configured")
+	ErrOutputUnavailable   = errors.New("output format is not implemented yet")
 )
 
 type Flags struct {
@@ -52,11 +54,21 @@ func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Co
 			if service == nil {
 				return ErrAnalysisUnavailable
 			}
-			_, err := service.Analyze(cmd.Context(), Request{
+			analysis, err := service.Analyze(cmd.Context(), Request{
 				Hostname: args[0],
 				Flags:    flags,
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			if flags.Output != "text" {
+				return fmt.Errorf("%w: %q", ErrOutputUnavailable, flags.Output)
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), render.Text(analysis))
+			if err != nil {
+				return fmt.Errorf("write analysis report: %w", err)
+			}
+			return nil
 		},
 	}
 

@@ -262,10 +262,11 @@ func (c Condition) Validate() error {
 }
 
 type Rule struct {
-	Index        int           `json:"index" yaml:"index"`
-	Matches      []Match       `json:"matches,omitempty" yaml:"matches,omitempty"`
-	Filters      []Filter      `json:"filters,omitempty" yaml:"filters,omitempty"`
-	Destinations []Destination `json:"destinations,omitempty" yaml:"destinations,omitempty"`
+	Index        int               `json:"index" yaml:"index"`
+	Matches      []Match           `json:"matches,omitempty" yaml:"matches,omitempty"`
+	Filters      []Filter          `json:"filters,omitempty" yaml:"filters,omitempty"`
+	Actions      map[string]string `json:"actions,omitempty" yaml:"actions,omitempty"`
+	Destinations []Destination     `json:"destinations,omitempty" yaml:"destinations,omitempty"`
 }
 
 func (r Rule) Validate() error {
@@ -294,15 +295,19 @@ type Filter struct {
 }
 
 type Destination struct {
-	Kind           DestinationKind      `json:"kind" yaml:"kind"`
-	Namespace      string               `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-	Name           string               `json:"name" yaml:"name"`
-	Subset         string               `json:"subset,omitempty" yaml:"subset,omitempty"`
-	Port           *int32               `json:"port,omitempty" yaml:"port,omitempty"`
-	Weight         *int32               `json:"weight,omitempty" yaml:"weight,omitempty"`
-	ReferenceGrant *GrantResult         `json:"referenceGrant,omitempty" yaml:"referenceGrant,omitempty"`
-	External       *ExternalDestination `json:"external,omitempty" yaml:"external,omitempty"`
-	Service        *Service             `json:"service,omitempty" yaml:"service,omitempty"`
+	Kind            DestinationKind      `json:"kind" yaml:"kind"`
+	BackendGroup    string               `json:"backendGroup,omitempty" yaml:"backendGroup,omitempty"`
+	BackendKind     string               `json:"backendKind,omitempty" yaml:"backendKind,omitempty"`
+	Namespace       string               `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	Name            string               `json:"name" yaml:"name"`
+	Subset          string               `json:"subset,omitempty" yaml:"subset,omitempty"`
+	DestinationRule *ResourceIdentity    `json:"destinationRule,omitempty" yaml:"destinationRule,omitempty"`
+	SubsetLabels    map[string]string    `json:"subsetLabels,omitempty" yaml:"subsetLabels,omitempty"`
+	Port            *int32               `json:"port,omitempty" yaml:"port,omitempty"`
+	Weight          *int32               `json:"weight,omitempty" yaml:"weight,omitempty"`
+	ReferenceGrant  *GrantResult         `json:"referenceGrant,omitempty" yaml:"referenceGrant,omitempty"`
+	External        *ExternalDestination `json:"external,omitempty" yaml:"external,omitempty"`
+	Service         *Service             `json:"service,omitempty" yaml:"service,omitempty"`
 }
 
 func (d Destination) Validate() error {
@@ -311,6 +316,11 @@ func (d Destination) Validate() error {
 	}
 	if d.Weight != nil && *d.Weight < 0 {
 		return fmt.Errorf("negative weight %d", *d.Weight)
+	}
+	if d.DestinationRule != nil {
+		if err := d.DestinationRule.Validate(); err != nil {
+			return fmt.Errorf("DestinationRule: %w", err)
+		}
 	}
 	switch d.Kind {
 	case DestinationKindService:

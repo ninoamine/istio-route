@@ -1,0 +1,16 @@
+shop.example.com
+├─ [Istio] Gateway istio-system/public-gw server https :443 HTTPS (TLS SIMPLE, secret shop-tls)
+│  └─ [Istio] VirtualService shop/shop-vs
+│     ├─ [Istio] 1. prefix /api
+│     │  ├─ [Istio] → api-svc.shop:8080 subset v1 (90%)
+│     │  └─ [Istio] → api-svc.shop:8080 subset v2 (10%)
+│     └─ [Istio] 2. (default)
+│        └─ [Istio] → web-svc.shop:80 (100%)
+└─ [Gateway API] Gateway infra/edge-gw (class: istio, controller: istio.io/gateway-controller) listener https :443 HTTPS  ✔ Programmed
+   └─ [Gateway API] HTTPRoute shop/shop-route  ✔ Accepted ✔ ResolvedRefs
+      ├─ [Gateway API] 1. path prefix /v2 header x-canary=true
+      │  ├─ [Gateway API] filter: URLRewrite path=/v2 → /
+      │  └─ [Gateway API] → api-v2.shop:8080 (100%)
+      └─ [Gateway API] 2. (default)
+         └─ [Gateway API] → web.shop:80 (100%)
+⚠ shop.example.com is served by both an Istio VirtualService and a Gateway API HTTPRoute

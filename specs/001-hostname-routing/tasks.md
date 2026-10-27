@@ -59,20 +59,20 @@ external details, Services, and actual endpoint Pod readiness.
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Add table-driven exact, wildcard, namespace-qualified Istio host, and Gateway API hostname intersection cases in `internal/resolve/hostname_test.go`.
-- [ ] T011 [P] [US1] Add routing-tree fixture assertions for Gateway/listener properties, VirtualService/HTTPRoute rule order, destinations, weights, and endpoints in `internal/resolve/resolve_test.go`.
-- [ ] T012 [P] [US1] Add a golden end-to-end text report fixture for mixed Istio and Gateway API routes in `testdata/golden/mixed-routing.txt` and `internal/render/text_test.go`.
+- [X] T010 [P] [US1] Add table-driven exact, wildcard, namespace-qualified Istio host, and Gateway API hostname intersection cases in `internal/resolve/hostname_test.go`.
+- [X] T011 [P] [US1] Add routing-tree fixture assertions for Gateway/listener properties, VirtualService/HTTPRoute rule order, destinations, weights, and endpoints in `internal/resolve/resolve_test.go`.
+- [X] T012 [P] [US1] Add a golden end-to-end text report fixture for mixed Istio and Gateway API routes in `testdata/golden/mixed-routing.txt` and `internal/render/text_test.go`.
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement normalized exact and wildcard hostname matching, including namespace-qualified Istio hosts and Gateway API listener/route hostname intersection, in `internal/resolve/hostname.go`.
-- [ ] T014 [US1] Implement context-aware typed list operations for Istio Gateway, VirtualService, DestinationRule, ServiceEntry and Gateway API GatewayClass, Gateway, HTTPRoute, and ReferenceGrant, plus referenced backend Service, EndpointSlice, and endpoint-target Pod reads, in `internal/kube/routing.go` and `internal/kube/endpoints.go`.
-- [ ] T015 [US1] Resolve Istio Gateway servers to VirtualServices, DestinationRule subsets, ordered matches/actions, weighted destinations, and ServiceEntry destinations in `internal/resolve/istio.go`.
-- [ ] T016 [US1] Resolve GatewayClass/controller, Gateway listeners, HTTPRoute parent/listener attachment, ordered matches/filters/timeouts, backendRefs, and cross-namespace references in `internal/resolve/gateway_api.go`.
-- [ ] T017 [US1] Interpret Service, EndpointSlice, and endpoint-target Pod objects returned by the kube client, associate actual endpoints with each resolved destination, and preserve readiness or unavailable status in `internal/resolve/endpoints.go`.
-- [ ] T018 [US1] Assemble matching entry points, routes, rules, destinations, workloads, and source availability into the shared analysis tree in `internal/resolve/resolve.go`.
-- [ ] T019 [US1] Render the default text tree with entry point details, ordered numbered rules, per-backend weights, explicit `[Istio]`/`[Gateway API]` node labels, and required tree structure in `internal/render/text.go`.
-- [ ] T020 [US1] Implement the end-to-end analysis service that uses the current Kubernetes context by default, obtains the resource snapshot through the cluster source and kube interfaces, resolves the hostname, and returns the routing tree to the Cobra handler in `internal/cli/analyze.go` and `internal/source/cluster.go`.
+- [X] T013 [US1] Implement normalized exact and wildcard hostname matching, including namespace-qualified Istio hosts and Gateway API listener/route hostname intersection, in `internal/resolve/hostname.go`.
+- [X] T014 [US1] Implement context-aware typed list operations for Istio Gateway, VirtualService, DestinationRule, ServiceEntry and Gateway API GatewayClass, Gateway, HTTPRoute, and ReferenceGrant, plus referenced backend Service, EndpointSlice, and endpoint-target Pod reads, in `internal/kube/client.go`, `internal/source/cluster.go`, and `internal/resolve/endpoints.go`.
+- [X] T015 [US1] Resolve Istio Gateway servers to VirtualServices, DestinationRule subsets, ordered matches/actions, weighted destinations, and ServiceEntry destinations in `internal/resolve/istio.go`.
+- [X] T016 [US1] Resolve GatewayClass/controller, Gateway listeners, HTTPRoute parent/listener attachment, ordered matches/filters/timeouts, backendRefs, and cross-namespace references in `internal/resolve/gateway_api.go`.
+- [X] T017 [US1] Interpret Service, EndpointSlice, and endpoint-target Pod objects returned by the kube client, associate actual endpoints with each resolved destination, and preserve readiness or unavailable status in `internal/resolve/endpoints.go`.
+- [X] T018 [US1] Assemble matching entry points, routes, rules, destinations, workloads, and source availability into the shared analysis tree in `internal/resolve/resolve.go`.
+- [X] T019 [US1] Render the default text tree with entry point details, ordered numbered rules, per-backend weights, explicit `[Istio]`/`[Gateway API]` node labels, and required tree structure in `internal/render/text.go`.
+- [X] T020 [US1] Implement the end-to-end analysis service that uses the current Kubernetes context by default, obtains the resource snapshot through the cluster source and kube interfaces, resolves the hostname, and returns the routing tree to the Cobra handler in `internal/cli/analyze.go` and `internal/source/cluster.go`.
 
 **Checkpoint**: The MVP can explain a hostname from a supplied resource snapshot
 through its supported routes and actual in-cluster endpoints.

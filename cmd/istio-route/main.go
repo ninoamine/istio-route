@@ -14,7 +14,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return runWithService(args, stdout, stderr, nil)
+	return runWithService(args, stdout, stderr, cli.NewDefaultAnalysisService())
 }
 
 func runWithService(args []string, stdout, stderr io.Writer, service cli.AnalysisService) int {
