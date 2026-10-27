@@ -1,0 +1,8 @@
+{
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "workspace",
+  "go.formatTool": "gofumpt",
+  "go.testFlags": ["-race", "-count=1"],
+  "editor.formatOnSave": true,
+  "[go]": { "editor.codeActionsOnSave": { "source.organizeImports": "explicit" } }
+}

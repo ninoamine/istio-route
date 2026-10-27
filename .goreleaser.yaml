@@ -1,0 +1,47 @@
+version: 2
+
+project_name: istio-route
+
+release:
+  github:
+    owner: ninoamine
+    name: istio-route
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: istio-route
+    main: ./cmd/istio-route
+    binary: istio-route
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc

@@ -1,0 +1,16 @@
+# Go build and test outputs
+*.exe
+*.test
+*.out
+coverage.out
+vendor/
+dist/
+
+# Local environment and generated artifacts
+.env
+.env.*
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db

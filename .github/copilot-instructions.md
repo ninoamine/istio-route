@@ -1,0 +1,12 @@
+# Project conventions
+- Idiomatic Go: Effective Go, Go Code Review Comments, Google Go Style Guide.
+- Layout: minimal `cmd/istio-route/main.go`, business logic in `internal/`. No `utils` package.
+- CLI built with cobra. No business logic inside cobra commands.
+- Errors: `fmt.Errorf("context: %w", err)`, never panic outside main.
+- `context.Context` as the first parameter of any function doing I/O.
+- I/O dependencies (Kubernetes) behind interfaces so they can be tested with fakes.
+- Table-driven tests, golden files for rendering, `-race` mandatory.
+- Logs via `log/slog` on stderr; results go to stdout only.
+- Honor `NO_COLOR`, disable colors when stdout is not a TTY.
+- Exit codes: 0 ok, 1 error, 2 usage, 3 hostname not found.
+- Before proposing code: `gofumpt`, `go vet` and `golangci-lint run` must pass.
