@@ -69,9 +69,9 @@ jobs:
         run: go test -race -coverpkg=./internal/... -coverprofile=coverage.out ./...
       - name: Enforce internal coverage
         run: |
-          coverage="$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, \"\", $3); print $3}')"
+          coverage="$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')"
           test -n "$coverage"
-          awk -v coverage="$coverage" 'BEGIN { if (coverage < 80) { printf \"internal coverage %.1f%% is below 80%%\\n\", coverage; exit 1 } }'
+          awk -v coverage="$coverage" 'BEGIN { if (coverage < 80) { printf "internal coverage %.1f%% is below 80%%\n", coverage; exit 1 } }'
 
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
