@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -181,5 +183,187 @@ func TestRootCommandWritesAnalysisToStdout(t *testing.T) {
 	}
 	if got := stderr.String(); got != "" {
 		t.Errorf("stderr = %q, want empty", got)
+	}
+}
+
+func TestRootCommandRendersFormatsAndKeepsDiagnosticsOnStderr(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	tests := []struct {
+		format   string
+		prefix   string
+		contains string
+	}{
+		{format: "text", prefix: "shop.example.com\n", contains: "⚠ sample warning"},
+		{format: "json", prefix: "{\n", contains: `"hostname": "shop.example.com"`},
+		{format: "yaml", prefix: "findings:\n", contains: "sample warning"},
+		{format: "mermaid", prefix: "flowchart TD\n", contains: "shop.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			stdout := new(bytes.Buffer)
+			stderr := new(bytes.Buffer)
+			service := &fakeAnalysisService{
+				analysis: model.Analysis{
+					Hostname: "shop.example.com",
+					Source: model.SourceSnapshot{
+						Mode: model.SourceModeCluster,
+						Families: []model.ResourceFamilyStatus{{
+							Family: "istio", Available: false, Reason: "API group not found",
+						}},
+					},
+					Findings: []model.Finding{{
+						Code: "sample", Severity: model.FindingSeverityWarning, Message: "sample warning",
+					}},
+				},
+			}
+			command := NewRootCommand(service, stdout, stderr)
+			command.SetArgs([]string{"--output", tt.format, "shop.example.com"})
+			if err := command.Execute(); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !strings.HasPrefix(stdout.String(), tt.prefix) ||
+				!strings.Contains(stdout.String(), tt.contains) {
+				t.Errorf("stdout = %q, want prefix %q and substring %q", stdout.String(), tt.prefix, tt.contains)
+			}
+			if !strings.Contains(stderr.String(), "skipping unavailable resource family") ||
+				!strings.Contains(stderr.String(), "API group not found") {
+				t.Errorf("stderr = %q, want skipped-family diagnostic", stderr.String())
+			}
+			if strings.Contains(stdout.String(), "skipping unavailable resource family") {
+				t.Errorf("stdout contains log output: %q", stdout.String())
+			}
+			if strings.Contains(stdout.String(), "\x1b[") {
+				t.Errorf("non-TTY stdout contains ANSI styling: %q", stdout.String())
+			}
+		})
+	}
+}
+
+func TestRootCommandLogsUnavailableFamiliesWhenHostnameIsNotFound(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	service := &fakeAnalysisService{
+		analysis: model.Analysis{
+			Source: model.SourceSnapshot{Families: []model.ResourceFamilyStatus{{
+				Family: "gateway-api", Available: false, Reason: "CRD not installed",
+			}}},
+		},
+		err: ErrHostnameNotFound,
+	}
+	command := NewRootCommand(service, stdout, stderr)
+	command.SetArgs([]string{"shop.example.com"})
+	if err := command.Execute(); !errors.Is(err, ErrHostnameNotFound) {
+		t.Fatalf("Execute() error = %v, want hostname-not-found", err)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "skipping unavailable resource family") ||
+		!strings.Contains(stderr.String(), "CRD not installed") {
+		t.Errorf("stderr = %q, want skipped-family diagnostic", stderr.String())
+	}
+}
+
+func TestColorEnabledRequiresTerminalAndHonorsOverrides(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Errorf("close pipe reader: %v", err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Errorf("close pipe writer: %v", err)
+		}
+	})
+
+	t.Setenv("NO_COLOR", "")
+	if colorEnabled(writer, false) {
+		t.Error("colorEnabled() = true for non-terminal output")
+	}
+	if colorEnabled(writer, true) {
+		t.Error("colorEnabled() = true when --no-color is set")
+	}
+	t.Setenv("NO_COLOR", "1")
+	if colorEnabled(writer, false) {
+		t.Error("colorEnabled() = true when NO_COLOR is set")
+	}
+}
+
+func TestRootCommandLoadsRepeatedFilesWithoutInitializingCluster(t *testing.T) {
+	dir := t.TempDir()
+	serviceEntryPath := filepath.Join(dir, "service-entry.yaml")
+	serviceEntry := `apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: shop
+  namespace: shop
+spec:
+  hosts:
+    - shop.example.com
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+`
+	if err := os.WriteFile(serviceEntryPath, []byte(serviceEntry), 0o600); err != nil {
+		t.Fatalf("write ServiceEntry manifest: %v", err)
+	}
+	configMapPath := filepath.Join(dir, "additional.yaml")
+	configMap := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: additional
+  namespace: shop
+`
+	if err := os.WriteFile(configMapPath, []byte(configMap), 0o600); err != nil {
+		t.Fatalf("write additional manifest: %v", err)
+	}
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	command := NewRootCommand(NewDefaultAnalysisService(), stdout, stderr)
+	command.SetArgs([]string{
+		"--kubeconfig", filepath.Join(dir, "does-not-exist"),
+		"--file", serviceEntryPath, "--file", configMapPath,
+		"shop.example.com",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.HasPrefix(stdout.String(), "shop.example.com\n") ||
+		!strings.Contains(stdout.String(), "[Istio] ServiceEntry shop/shop") {
+		t.Errorf("stdout = %q, want offline ServiceEntry report", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want no cluster initialization or diagnostics", stderr.String())
+	}
+}
+
+func TestRootCommandResolvesOfflineEndpointAndPodStatus(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	command := NewRootCommand(NewDefaultAnalysisService(), stdout, stderr)
+	command.SetArgs([]string{
+		"--file", "../../testdata/manifests/endpoints.yaml",
+		"shop.example.com",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	for _, want := range []string{
+		"Service shop/api (present)",
+		"Endpoint 10.0.0.10 (ready)",
+		"Pod shop/api-0 (ready, phase Running)",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("stdout missing %q:\n%s", want, stdout.String())
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want empty", stderr.String())
 	}
 }

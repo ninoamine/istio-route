@@ -5,6 +5,8 @@
 coverage.out
 vendor/
 dist/
+/istio-route
+testdata/performance/results/
 
 # Local environment and generated artifacts
 .env

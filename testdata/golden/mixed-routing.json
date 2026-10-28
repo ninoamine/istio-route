@@ -1,0 +1,140 @@
+{
+  "hostname": "shop.example.com",
+  "source": {
+    "mode": "files",
+    "files": [
+      "mixed.yaml"
+    ]
+  },
+  "entryPoints": [
+    {
+      "origin": "Istio",
+      "resource": {
+        "group": "networking.istio.io",
+        "version": "v1",
+        "kind": "Gateway",
+        "namespace": "istio-system",
+        "name": "public-gw"
+      },
+      "name": "https",
+      "hostname": "shop.example.com",
+      "port": 443,
+      "protocol": "HTTPS"
+    },
+    {
+      "origin": "Gateway API",
+      "resource": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "Gateway",
+        "namespace": "infra",
+        "name": "edge-gw"
+      },
+      "name": "https",
+      "hostname": "shop.example.com",
+      "port": 443,
+      "protocol": "HTTPS",
+      "conditions": [
+        {
+          "type": "Programmed",
+          "status": "True"
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "origin": "Istio",
+      "resource": {
+        "group": "networking.istio.io",
+        "version": "v1",
+        "kind": "VirtualService",
+        "namespace": "shop",
+        "name": "shop-vs"
+      },
+      "parentRefs": [
+        {
+          "group": "networking.istio.io",
+          "version": "v1",
+          "kind": "Gateway",
+          "namespace": "istio-system",
+          "name": "public-gw"
+        }
+      ],
+      "rules": [
+        {
+          "index": 1,
+          "matches": [
+            {
+              "pathType": "prefix",
+              "path": "/api"
+            }
+          ],
+          "destinations": [
+            {
+              "kind": "service",
+              "namespace": "shop",
+              "name": "api",
+              "port": 8080,
+              "weight": 100
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "origin": "Gateway API",
+      "resource": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "HTTPRoute",
+        "namespace": "shop",
+        "name": "shop-route"
+      },
+      "parentRefs": [
+        {
+          "group": "gateway.networking.k8s.io",
+          "version": "v1",
+          "kind": "Gateway",
+          "namespace": "infra",
+          "name": "edge-gw"
+        }
+      ],
+      "conditions": [
+        {
+          "type": "Accepted",
+          "status": "True"
+        }
+      ],
+      "rules": [
+        {
+          "index": 1,
+          "filters": [
+            {
+              "type": "URLRewrite",
+              "details": {
+                "path": "/v2"
+              }
+            }
+          ],
+          "destinations": [
+            {
+              "kind": "service",
+              "namespace": "shop",
+              "name": "api-v2",
+              "port": 8080,
+              "weight": 100
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "code": "mixed-api-hostname",
+      "severity": "warning",
+      "message": "hostname is served by both routing APIs"
+    }
+  ]
+}

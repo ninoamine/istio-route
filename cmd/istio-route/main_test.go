@@ -63,6 +63,9 @@ func TestRunExitCodes(t *testing.T) {
 			if tt.wantStderr != "" && !bytes.Contains(stderr.Bytes(), []byte(tt.wantStderr)) {
 				t.Errorf("stderr = %q, want substring %q", stderr.String(), tt.wantStderr)
 			}
+			if tt.wantCode != 0 && stdout.Len() != 0 {
+				t.Errorf("stdout = %q, want empty when command fails", stdout.String())
+			}
 		})
 	}
 }

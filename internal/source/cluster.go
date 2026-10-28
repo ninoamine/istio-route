@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -24,7 +25,29 @@ type ClusterSource struct {
 	Namespace string
 }
 
+type ClusterClientFactory func(*rest.Config) (kube.Reader, discovery.DiscoveryInterface, error)
+
 func NewClusterSource(ctx context.Context, kubeconfig, contextName, namespace string) (*ClusterSource, error) {
+	return NewClusterSourceWithClientFactory(
+		ctx, kubeconfig, contextName, namespace,
+		func(config *rest.Config) (kube.Reader, discovery.DiscoveryInterface, error) {
+			client, err := kube.NewClient(config)
+			if err != nil {
+				return nil, nil, err
+			}
+			return client, client.Discovery(), nil
+		},
+	)
+}
+
+func NewClusterSourceWithClientFactory(
+	ctx context.Context,
+	kubeconfig, contextName, namespace string,
+	newClients ClusterClientFactory,
+) (*ClusterSource, error) {
+	if newClients == nil {
+		return nil, fmt.Errorf("initialize cluster source: client factory is required")
+	}
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfig != "" {
 		loadingRules.ExplicitPath = kubeconfig
@@ -39,12 +62,22 @@ func NewClusterSource(ctx context.Context, kubeconfig, contextName, namespace st
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("initialize cluster source: %w", err)
 	}
-	client, err := kube.NewClient(restConfig)
+	reader, discoveryClient, err := newClients(restConfig)
 	if err != nil {
 		return nil, fmt.Errorf("initialize cluster source: %w", err)
 	}
+	if reader == nil || discoveryClient == nil {
+		return nil, fmt.Errorf("initialize cluster source: client factory returned incomplete clients")
+	}
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return nil, fmt.Errorf("read Kubernetes context: %w", err)
+	}
+	if contextName == "" {
+		contextName = rawConfig.CurrentContext
+	}
 	return &ClusterSource{
-		Reader: client, Discovery: client.Discovery(),
+		Reader: reader, Discovery: discoveryClient,
 		Context: contextName, Namespace: namespace,
 	}, nil
 }
@@ -63,7 +96,10 @@ func (s *ClusterSource) Snapshot(ctx context.Context) (Snapshot, error) {
 		},
 	}
 
-	istioAvailable, istioReason, err := familyAvailable(s.Discovery, "networking.istio.io/v1")
+	if err := ctx.Err(); err != nil {
+		return Snapshot{}, &Error{Mode: ModeCluster, Err: err}
+	}
+	istioAvailable, istioReason, err := kube.DiscoverGroupVersion(ctx, s.Discovery, "networking.istio.io/v1")
 	if err != nil {
 		return Snapshot{}, &Error{Mode: ModeCluster, Err: err}
 	}
@@ -76,7 +112,7 @@ func (s *ClusterSource) Snapshot(ctx context.Context) (Snapshot, error) {
 		}
 	}
 
-	gatewayAvailable, gatewayReason, err := familyAvailable(s.Discovery, "gateway.networking.k8s.io/v1")
+	gatewayAvailable, gatewayReason, err := kube.DiscoverGroupVersion(ctx, s.Discovery, "gateway.networking.k8s.io/v1")
 	if err != nil {
 		return Snapshot{}, &Error{Mode: ModeCluster, Err: err}
 	}
@@ -89,7 +125,7 @@ func (s *ClusterSource) Snapshot(ctx context.Context) (Snapshot, error) {
 		}
 	}
 
-	referenceGrantAvailable, reason, err := familyAvailable(s.Discovery, "gateway.networking.k8s.io/v1beta1")
+	referenceGrantAvailable, reason, err := kube.DiscoverGroupVersion(ctx, s.Discovery, "gateway.networking.k8s.io/v1beta1")
 	if err != nil {
 		return Snapshot{}, &Error{Mode: ModeCluster, Err: err}
 	}
@@ -182,17 +218,6 @@ func (s *ClusterSource) appendGatewayResources(ctx context.Context, namespace st
 		}, "HTTPRoute", &routes.Items[i]))
 	}
 	return nil
-}
-
-func familyAvailable(client discovery.DiscoveryInterface, groupVersion string) (bool, string, error) {
-	_, err := client.ServerResourcesForGroupVersion(groupVersion)
-	if err == nil {
-		return true, "", nil
-	}
-	if isMissingAPI(err) {
-		return false, err.Error(), nil
-	}
-	return false, "", fmt.Errorf("discover API %s: %w", groupVersion, err)
 }
 
 func isMissingAPI(err error) bool {

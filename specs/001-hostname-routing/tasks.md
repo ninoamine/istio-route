@@ -90,17 +90,17 @@ plain-language reason.
 
 ### Tests for User Story 2
 
-- [ ] T021 [P] [US2] Add table-driven tests for HTTPRoute Accepted/ResolvedRefs, Gateway Programmed, and plain-language hostname/parent/listener/backend failures in `internal/diagnose/conditions_test.go`.
-- [ ] T022 [P] [US2] Add table-driven tests for unbound VirtualServices, missing DestinationRule subsets and ReferenceGrants, invalid weights, wildcard shadowing, and cross-family hostname conflicts in `internal/diagnose/warnings_test.go`.
+- [X] T021 [P] [US2] Add table-driven tests for HTTPRoute Accepted/ResolvedRefs, Gateway Programmed, and plain-language hostname/parent/listener/backend failures in `internal/diagnose/conditions_test.go`.
+- [X] T022 [P] [US2] Add table-driven tests for unbound VirtualServices, missing DestinationRule subsets and ReferenceGrants, invalid weights, wildcard shadowing, and cross-family hostname conflicts in `internal/diagnose/warnings_test.go`.
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Map Gateway and HTTPRoute condition types, statuses, reasons, messages, and missing status to model condition values and plain-language explanations in `internal/diagnose/conditions.go`.
-- [ ] T024 [US2] Detect missing HTTPRoute parents/listeners, hostname non-intersection, unresolved backend references, and unauthorized cross-namespace references in `internal/diagnose/references.go`.
-- [ ] T025 [US2] Detect unbound Istio VirtualServices, absent subset DestinationRules, and missing or non-authorizing ReferenceGrants in `internal/diagnose/istio_gateway.go`.
-- [ ] T026 [US2] Detect Istio weight totals other than 100, all-zero Gateway API backend weights, wildcard overlap/shadowing, unmatched hostname, and mixed Istio/Gateway API hostname conflicts in `internal/diagnose/warnings.go`.
-- [ ] T027 [US2] Attach stable codes, severity, related resource identity, and actionable explanations to findings and order them deterministically in `internal/diagnose/diagnose.go`.
-- [ ] T028 [US2] Render `✔`/`✘` condition markers and append warning lines at the end with the `⚠` prefix in `internal/render/text.go`.
+- [X] T023 [US2] Map Gateway and HTTPRoute condition types, statuses, reasons, messages, and missing status to model condition values and plain-language explanations in `internal/diagnose/conditions.go`.
+- [X] T024 [US2] Detect missing HTTPRoute parents/listeners, hostname non-intersection, unresolved backend references, and unauthorized cross-namespace references in `internal/diagnose/references.go`.
+- [X] T025 [US2] Detect unbound Istio VirtualServices, absent subset DestinationRules, and missing or non-authorizing ReferenceGrants in `internal/diagnose/istio_gateway.go`.
+- [X] T026 [US2] Detect Istio weight totals other than 100, all-zero Gateway API backend weights, wildcard overlap/shadowing, unmatched hostname, and mixed Istio/Gateway API hostname conflicts in `internal/diagnose/warnings.go`.
+- [X] T027 [US2] Attach stable codes, severity, related resource identity, and actionable explanations to findings and order them deterministically in `internal/diagnose/diagnose.go`.
+- [X] T028 [US2] Render `✔`/`✘` condition markers and append warning lines at the end with the `⚠` prefix in `internal/render/text.go`.
 
 **Checkpoint**: A matching but unhealthy or unresolved route produces a useful
 diagnostic report; no-match remains distinct for exit code 3.
@@ -119,17 +119,17 @@ CRD families.
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Add file-source tests for repeated YAML files, multi-document manifests, duplicate identities, malformed YAML, and absent status in `internal/source/files_test.go`.
-- [ ] T030 [P] [US3] Add fake-client tests for context/namespace scope, read-only list/get calls, and absent Istio or Gateway API discovery in `internal/source/cluster_test.go`.
-- [ ] T031 [P] [US3] Add CLI tests proving `-f/--file` mode does not initialize a cluster client and cluster flags select kubeconfig, context, and namespace in `internal/cli/root_test.go`.
+- [X] T029 [P] [US3] Add file-source tests for repeated YAML files, multi-document manifests, duplicate identities, malformed YAML, and absent status in `internal/source/files_test.go`.
+- [X] T030 [P] [US3] Add fake-client tests for context/namespace scope, read-only list/get calls, and absent Istio or Gateway API discovery in `internal/source/cluster_test.go`.
+- [X] T031 [P] [US3] Add CLI tests proving `-f/--file` mode does not initialize a cluster client and cluster flags select kubeconfig, context, and namespace in `internal/cli/root_test.go`.
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Load one or more YAML files, including multi-document files, into typed/unstructured objects with preserved GVK and actionable parse errors in `internal/source/files.go`.
-- [ ] T033 [US3] Extend the default cluster source to honor explicit kubeconfig, context, and optional namespace selection while using injected context-aware read-only clients in `internal/source/cluster.go`.
-- [ ] T034 [US3] Discover supported API groups before reads; represent absent Istio or Gateway API CRDs as skipped-family informational messages and continue with available families in `internal/kube/discovery.go`.
-- [ ] T035 [US3] Add a fake-client assertion that source queries fetch only referenced backend Services, their EndpointSlices, and endpoint-target Pods, and never list unrelated Services or Pods, in `internal/source/cluster_test.go`.
-- [ ] T036 [US3] Wire repeated `-f/--file`, `--kubeconfig`, `--context`, and `-n/--namespace` flags to the appropriate source in `internal/cli/root.go`.
+- [X] T032 [US3] Load one or more YAML files, including multi-document files, into typed/unstructured objects with preserved GVK and actionable parse errors in `internal/source/files.go`.
+- [X] T033 [US3] Extend the default cluster source to honor explicit kubeconfig, context, and optional namespace selection while using injected context-aware read-only clients in `internal/source/cluster.go`.
+- [X] T034 [US3] Discover supported API groups before reads; represent absent Istio or Gateway API CRDs as skipped-family informational messages and continue with available families in `internal/kube/discovery.go`.
+- [X] T035 [US3] Add a fake-client assertion that source queries fetch only referenced backend Services, their EndpointSlices, and endpoint-target Pods, and never list unrelated Services or Pods, in `internal/source/cluster_test.go`.
+- [X] T036 [US3] Wire repeated `-f/--file`, `--kubeconfig`, `--context`, and `-n/--namespace` flags to the appropriate source in `internal/cli/root.go`.
 
 **Checkpoint**: Users can produce the same analysis from live cluster reads or
 offline manifests, and unavailable API families do not abort the remaining analysis.
@@ -147,18 +147,18 @@ when `NO_COLOR` is set or stdout is not a terminal.
 
 ### Tests for User Story 4
 
-- [ ] T037 [P] [US4] Add JSON, YAML, and Mermaid golden fixtures for the same mixed-API analysis and verify identical routing facts and findings in `internal/render/render_test.go`.
-- [ ] T038 [P] [US4] Add text renderer tests for explicit origin labels on every resource, rule, filter, and destination node, ordered weights, condition markers, final warning placement, `NO_COLOR`, and non-TTY output in `internal/render/text_test.go`.
-- [ ] T039 [P] [US4] Add CLI tests verifying result-only stdout and diagnostic/log-only stderr for success, skipped API family, warning, and error cases in `internal/cli/root_test.go`.
+- [X] T037 [P] [US4] Add JSON, YAML, and Mermaid golden fixtures for the same mixed-API analysis and verify identical routing facts and findings in `internal/render/render_test.go`.
+- [X] T038 [P] [US4] Add text renderer tests for explicit origin labels on every resource, rule, filter, and destination node, ordered weights, condition markers, final warning placement, `NO_COLOR`, and non-TTY output in `internal/render/text_test.go`.
+- [X] T039 [P] [US4] Add CLI tests verifying result-only stdout and diagnostic/log-only stderr for success, skipped API family, warning, and error cases in `internal/cli/root_test.go`.
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Implement JSON serialization of the shared routing tree and findings in `internal/render/json.go`.
-- [ ] T041 [US4] Implement YAML serialization of the same routing tree and findings in `internal/render/yaml.go`.
-- [ ] T042 [US4] Implement Mermaid graph output that preserves resource relationships without inventing cross-resource evaluation order in `internal/render/mermaid.go`.
-- [ ] T043 [US4] Add a renderer selector for `text`, `json`, `yaml`, and `mermaid`, rejecting unsupported formats as usage errors in `internal/render/render.go`.
-- [ ] T044 [US4] Apply Lip Gloss styles to text origin/status labels and tree nodes while respecting explicit `--no-color`, `NO_COLOR`, and non-terminal stdout in `internal/render/style.go`.
-- [ ] T045 [US4] Wire `--output` and `--no-color` flags to the renderer and keep all report bytes on stdout in `internal/cli/root.go`.
+- [X] T040 [US4] Implement JSON serialization of the shared routing tree and findings in `internal/render/json.go`.
+- [X] T041 [US4] Implement YAML serialization of the same routing tree and findings in `internal/render/yaml.go`.
+- [X] T042 [US4] Implement Mermaid graph output that preserves resource relationships without inventing cross-resource evaluation order in `internal/render/mermaid.go`.
+- [X] T043 [US4] Add a renderer selector for `text`, `json`, `yaml`, and `mermaid`, rejecting unsupported formats as usage errors in `internal/render/render.go`.
+- [X] T044 [US4] Apply Lip Gloss styles to text origin/status labels and tree nodes while respecting explicit `--no-color`, `NO_COLOR`, and non-terminal stdout in `internal/render/style.go`.
+- [X] T045 [US4] Wire `--output` and `--no-color` flags to the renderer and keep all report bytes on stdout in `internal/cli/root.go`.
 
 **Checkpoint**: Each supported output format can render one report model consistently;
 text formatting obeys the output contract and terminal color rules.
@@ -169,12 +169,12 @@ text formatting obeys the output contract and terminal color rules.
 
 **Purpose**: Close quality, security, performance, documentation, and release gaps.
 
-- [ ] T046 [P] Document CLI examples, exit codes, read-only permissions, source modes, output formats, CRD skip behavior, and Secret handling in `README.md`.
-- [ ] T047 [P] Add representative Istio, Gateway API, mixed-family, missing-ReferenceGrant, and endpoint/status manifest fixtures in `testdata/manifests/istio.yaml`, `testdata/manifests/gateway-api.yaml`, `testdata/manifests/mixed.yaml`, `testdata/manifests/missing-reference-grant.yaml`, and `testdata/manifests/endpoints.yaml`.
-- [ ] T048 Add least-privilege ClusterRole and ClusterRoleBinding manifests granting only `get`/`list` for required routing resources, Services, EndpointSlices, and Pods in `deploy/rbac.yaml`; verify `internal/kube/` has no Secret reads or Kubernetes write methods.
-- [ ] T049 Add a live-cluster performance harness and documented procedure in `testdata/performance/generate.go`, `testdata/performance/run.sh`, and `testdata/performance/README.md` that loads the exact SC-010 workload (10,000 Services across 100 namespaces, 100 Istio VirtualServices, 100 Gateway API HTTPRoutes, exactly one matching route from each family, and two referenced Services with three ready Pod endpoints each), runs 10 warm-ups plus 100 sequential hostname analyses on three workers provisioned with 4 vCPU and 8 GiB each, records cluster/worker versions and sequential timings, calculates p95, and fails unless p95 is below 10 seconds; fixture provisioning is by the harness and the CLI under test remains read-only.
-- [ ] T050 Run `gofumpt`, `go vet ./...`, `golangci-lint run`, `go test -race ./...`, and `go test ./internal/... -cover`; enforce at least 80% internal coverage in `.github/workflows/ci.yml`.
-- [ ] T051 Validate GoReleaser configuration and cross-build Linux, macOS, and Windows binaries for amd64 and arm64 using `.goreleaser.yaml`.
+- [X] T046 [P] Document CLI examples, exit codes, read-only permissions, source modes, output formats, CRD skip behavior, and Secret handling in `README.md`.
+- [X] T047 [P] Add representative Istio, Gateway API, mixed-family, missing-ReferenceGrant, and endpoint/status manifest fixtures in `testdata/manifests/istio.yaml`, `testdata/manifests/gateway-api.yaml`, `testdata/manifests/mixed.yaml`, `testdata/manifests/missing-reference-grant.yaml`, and `testdata/manifests/endpoints.yaml`.
+- [X] T048 Add least-privilege ClusterRole and ClusterRoleBinding manifests granting only `get`/`list` for required routing resources, Services, EndpointSlices, and Pods in `deploy/rbac.yaml`; verify `internal/kube/` has no Secret reads or Kubernetes write methods.
+- [X] T049 Add a live-cluster performance harness and documented procedure in `testdata/performance/generate.go`, `testdata/performance/run.sh`, and `testdata/performance/README.md` that loads the exact SC-010 workload (10,000 Services across 100 namespaces, 100 Istio VirtualServices, 100 Gateway API HTTPRoutes, exactly one matching route from each family, and two referenced Services with three ready Pod endpoints each), runs 10 warm-ups plus 100 sequential hostname analyses on three workers provisioned with 4 vCPU and 8 GiB each, records cluster/worker versions and sequential timings, calculates p95, and fails unless p95 is below 10 seconds; fixture provisioning is by the harness and the CLI under test remains read-only.
+- [X] T050 Run `gofumpt`, `go vet ./...`, `golangci-lint run`, `go test -race ./...`, and `go test ./internal/... -cover`; enforce at least 80% internal coverage in `.github/workflows/ci.yml`.
+- [X] T051 Validate GoReleaser configuration and cross-build Linux, macOS, and Windows binaries for amd64 and arm64 using `.goreleaser.yaml`.
 - [ ] T052 Run every end-to-end scenario in `specs/001-hostname-routing/quickstart.md` and record any implementation gaps in `specs/001-hostname-routing/`.
 
 ---

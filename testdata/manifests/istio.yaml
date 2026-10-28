@@ -1,0 +1,40 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: shop-gateway
+  namespace: shop
+spec:
+  selector:
+    app: ingress
+  servers:
+    - name: https
+      port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - shop.example.com
+      tls:
+        mode: SIMPLE
+        credentialName: shop-tls
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: shop
+  namespace: shop
+spec:
+  hosts:
+    - shop.example.com
+  gateways:
+    - shop-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api
+      route:
+        - destination:
+            host: api.shop.svc.cluster.local
+            port:
+              number: 8080
+          weight: 100

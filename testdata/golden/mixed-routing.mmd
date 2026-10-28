@@ -1,0 +1,22 @@
+flowchart TD
+  host_951623a26f8b["shop.example.com"]
+  entry_dc0650283e0a["Istio Gateway istio-system/public-gw listener=https host=shop.example.com port=443 protocol=HTTPS"]
+  entry_ab2af0480c07["Gateway API Gateway infra/edge-gw listener=https host=shop.example.com port=443 protocol=HTTPS Programmed=True"]
+  route_97cfbf1aa292["Istio VirtualService shop/shop-vs"]
+  route_b147e1f4f51e["Gateway API HTTPRoute shop/shop-route Accepted=True"]
+  route_97cfbf1aa292_rule_1["Istio rule 1 prefix /api"]
+  route_97cfbf1aa292_rule_1_backend_1["api.shop:8080 weight=100"]
+  route_b147e1f4f51e_rule_1["Gateway API rule 1 (default) filters=URLRewrite path=/v2"]
+  route_b147e1f4f51e_rule_1_backend_1["api-v2.shop:8080 weight=100"]
+  finding_1["WARNING: hostname is served by both routing APIs"]
+  host_951623a26f8b -->|matches| entry_dc0650283e0a
+  host_951623a26f8b -->|matches| entry_ab2af0480c07
+  entry_dc0650283e0a -->|attaches| route_97cfbf1aa292
+  route_97cfbf1aa292 -->|contains| route_97cfbf1aa292_rule_1
+  route_97cfbf1aa292_rule_1 -->|routes to| route_97cfbf1aa292_rule_1_backend_1
+  entry_ab2af0480c07 -->|attaches| route_b147e1f4f51e
+  route_b147e1f4f51e -->|contains| route_b147e1f4f51e_rule_1
+  route_b147e1f4f51e_rule_1 -->|routes to| route_b147e1f4f51e_rule_1_backend_1
+  host_951623a26f8b -->|finding| finding_1
+  classDef finding fill:#fff3cd,stroke:#b58900,color:#333
+  class finding_1 finding

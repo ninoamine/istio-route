@@ -14,6 +14,11 @@ type treeNode struct {
 }
 
 func Text(analysis model.Analysis) string {
+	return TextWithOptions(analysis, Options{})
+}
+
+func TextWithOptions(analysis model.Analysis, options Options) string {
+	styles := newTextStyles(options.Color)
 	root := treeNode{label: analysis.Hostname}
 	attached := make(map[int][]model.Route)
 	unattached := make([]model.Route, 0)
@@ -38,35 +43,34 @@ func Text(analysis model.Analysis) string {
 	}
 
 	for i, entry := range analysis.EntryPoints {
-		node := treeNode{label: entryLabel(entry)}
+		node := treeNode{label: entryLabel(entry, styles)}
 		routes := attached[i]
 		for _, route := range routes {
-			node.children = append(node.children, routeNode(route))
+			node.children = append(node.children, routeNode(route, styles))
 		}
 		root.children = append(root.children, node)
 	}
 	for _, route := range unattached {
-		root.children = append(root.children, routeNode(route))
+		root.children = append(root.children, routeNode(route, styles))
 	}
 
 	var builder strings.Builder
-	builder.WriteString(root.label)
+	builder.WriteString(styles.root(root.label))
 	builder.WriteByte('\n')
 	for i, child := range root.children {
-		writeNode(&builder, child, "", i == len(root.children)-1)
+		writeNode(&builder, child, "", i == len(root.children)-1, styles)
 	}
 	for _, finding := range analysis.Findings {
 		if finding.Severity != model.FindingSeverityWarning {
 			continue
 		}
-		builder.WriteString("⚠ ")
-		builder.WriteString(finding.Message)
+		builder.WriteString(styles.warning("⚠ " + finding.Message))
 		builder.WriteByte('\n')
 	}
 	return builder.String()
 }
 
-func entryLabel(entry model.EntryPoint) string {
+func entryLabel(entry model.EntryPoint, styles textStyles) string {
 	label := fmt.Sprintf("[Istio] Gateway %s", identityName(entry.Resource))
 	if entry.Origin == model.OriginGatewayAPI {
 		label = fmt.Sprintf("[Gateway API] Gateway %s", identityName(entry.Resource))
@@ -102,14 +106,14 @@ func entryLabel(entry model.EntryPoint) string {
 			} else {
 				label += " "
 			}
-			label += conditionLabel(condition)
+			label += styles.condition(condition)
 			conditionCount++
 		}
 	}
 	return label
 }
 
-func routeNode(route model.Route) treeNode {
+func routeNode(route model.Route, styles textStyles) treeNode {
 	label := fmt.Sprintf("[%s] %s %s", route.Origin, route.Resource.Kind, identityName(route.Resource))
 	conditionCount := 0
 	for _, condition := range route.Conditions {
@@ -119,7 +123,7 @@ func routeNode(route model.Route) treeNode {
 			} else {
 				label += " "
 			}
-			label += conditionLabel(condition)
+			label += styles.condition(condition)
 			conditionCount++
 		}
 	}
@@ -290,7 +294,7 @@ func effectiveWeight(origin model.Origin, weight int32, destinations []model.Des
 	return fmt.Sprint(weight * 100 / total)
 }
 
-func conditionLabel(condition model.Condition) string {
+func plainConditionLabel(condition model.Condition) string {
 	switch condition.Status {
 	case model.ConditionStatusTrue:
 		return "✔ " + condition.Type
@@ -315,20 +319,20 @@ func sameIdentity(first, second model.ResourceIdentity) bool {
 		first.Name == second.Name
 }
 
-func writeNode(builder *strings.Builder, node treeNode, prefix string, last bool) {
+func writeNode(builder *strings.Builder, node treeNode, prefix string, last bool, styles textStyles) {
 	builder.WriteString(prefix)
 	if last {
 		builder.WriteString("└─ ")
 	} else {
 		builder.WriteString("├─ ")
 	}
-	builder.WriteString(node.label)
+	builder.WriteString(styles.node(node.label))
 	builder.WriteByte('\n')
 	childPrefix := prefix + "│  "
 	if last {
 		childPrefix = prefix + "   "
 	}
 	for i, child := range node.children {
-		writeNode(builder, child, childPrefix, i == len(node.children)-1)
+		writeNode(builder, child, childPrefix, i == len(node.children)-1, styles)
 	}
 }

@@ -127,6 +127,73 @@ func TestTextMixedRoutingGolden(t *testing.T) {
 	}
 }
 
+func TestTextConditionMarkersAndFinalWarnings(t *testing.T) {
+	analysis := model.Analysis{
+		Hostname: "shop.example.com",
+		EntryPoints: []model.EntryPoint{{
+			Origin: model.OriginGatewayAPI,
+			Resource: model.ResourceIdentity{
+				Group: "gateway.networking.k8s.io", Version: "v1", Kind: "Gateway",
+				Namespace: "infra", Name: "edge",
+			},
+			Name:       "https",
+			Conditions: []model.Condition{{Type: "Programmed", Status: model.ConditionStatusTrue}},
+		}},
+		Routes: []model.Route{{
+			Origin: model.OriginGatewayAPI,
+			Resource: model.ResourceIdentity{
+				Group: "gateway.networking.k8s.io", Version: "v1", Kind: "HTTPRoute",
+				Namespace: "shop", Name: "route",
+			},
+			ParentRefs: []model.ResourceIdentity{{
+				Group: "gateway.networking.k8s.io", Version: "v1", Kind: "Gateway",
+				Namespace: "infra", Name: "edge",
+			}},
+			Conditions: []model.Condition{{Type: "Accepted", Status: model.ConditionStatusFalse}},
+		}},
+		Findings: []model.Finding{{
+			Code: "route-not-accepted", Severity: model.FindingSeverityWarning,
+			Message: "HTTPRoute was not accepted",
+		}},
+	}
+
+	got := Text(analysis)
+	if !strings.Contains(got, "✔ Programmed") {
+		t.Errorf("Text() missing true condition marker:\n%s", got)
+	}
+	if !strings.Contains(got, "✘ Accepted") {
+		t.Errorf("Text() missing false condition marker:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "⚠ HTTPRoute was not accepted\n") {
+		t.Errorf("Text() warning is not the final prefixed line:\n%s", got)
+	}
+}
+
+func TestTextStyleOptionsAndOriginLabels(t *testing.T) {
+	analysis := mixedRoutingAnalysis()
+	plain := TextWithOptions(analysis, Options{})
+	colored := TextWithOptions(analysis, Options{Color: true})
+	if strings.Contains(plain, "\x1b[") {
+		t.Fatalf("plain output contains ANSI escape codes: %q", plain)
+	}
+	if !strings.Contains(colored, "\x1b[") {
+		t.Fatalf("colored output contains no ANSI escape codes: %q", colored)
+	}
+	for _, label := range []string{
+		"[Istio] Gateway", "[Istio] VirtualService", "[Istio] 1.",
+		"[Istio] → api.shop:8080", "[Gateway API] Gateway",
+		"[Gateway API] HTTPRoute", "[Gateway API] 1.",
+		"[Gateway API] filter:", "[Gateway API] → api-v2.shop:8080",
+	} {
+		if !strings.Contains(plain, label) {
+			t.Errorf("text output missing origin label %q:\n%s", label, plain)
+		}
+	}
+	if strings.Index(plain, "[Istio] 1.") > strings.Index(plain, "[Gateway API] 1.") {
+		t.Errorf("text output did not preserve route/rule ordering:\n%s", plain)
+	}
+}
+
 func TestTextRendersWorkloadAndConditionStates(t *testing.T) {
 	weight := int32(50)
 	ready, notReady := true, false

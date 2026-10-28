@@ -2,40 +2,66 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ninoamine/istio-route/internal/model"
+	"github.com/ninoamine/istio-route/internal/source"
 )
 
-func TestDefaultAnalysisServiceRejectsUnsupportedInputAndInvalidKubeconfig(t *testing.T) {
-	service := NewDefaultAnalysisService()
-	tests := []struct {
-		name    string
-		request Request
-		wantErr string
-	}{
-		{
-			name: "offline input is deferred",
-			request: Request{
-				Hostname: "shop.example.com",
-				Flags:    Flags{Files: []string{"routes.yaml"}},
-			},
-			wantErr: "offline manifest input is not implemented yet",
-		},
-		{
-			name: "invalid kubeconfig is surfaced",
-			request: Request{
-				Hostname: "shop.example.com",
-				Flags:    Flags{Kubeconfig: "/path/that/does/not/exist"},
-			},
-			wantErr: "initialize analysis source",
-		},
+func TestDefaultAnalysisServiceSupportsOfflineFilesWithoutClusterInitialization(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "service-entry.yaml")
+	manifest := `apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: shop
+  namespace: shop
+spec:
+  hosts:
+    - shop.example.com
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+`
+	if err := os.WriteFile(file, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := service.Analyze(context.Background(), tt.request)
-			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Fatalf("Analyze() error = %v, want substring %q", err, tt.wantErr)
-			}
-		})
+
+	service := NewDefaultAnalysisService()
+	analysis, err := service.Analyze(context.Background(), Request{
+		Hostname: "shop.example.com",
+		Flags: Flags{
+			Files: []string{file}, Kubeconfig: "/path/that/must/not/be/read",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Analyze() error = %v", err)
+	}
+	if analysis.Source.Mode != model.SourceModeFiles {
+		t.Errorf("analysis source mode = %q, want files", analysis.Source.Mode)
+	}
+	if len(analysis.Routes) != 1 || analysis.Routes[0].Resource.Kind != "ServiceEntry" {
+		t.Fatalf("analysis routes = %#v, want one ServiceEntry route", analysis.Routes)
+	}
+}
+
+func TestDefaultAnalysisServiceSurfacesOfflineSourceErrors(t *testing.T) {
+	service := NewDefaultAnalysisService()
+	_, err := service.Analyze(context.Background(), Request{
+		Hostname: "shop.example.com",
+		Flags:    Flags{Files: []string{filepath.Join(t.TempDir(), "missing.yaml")}},
+	})
+	var sourceErr *source.Error
+	if !errors.As(err, &sourceErr) {
+		t.Fatalf("Analyze() error = %v, want source.Error", err)
+	}
+	if !strings.Contains(err.Error(), "missing.yaml") {
+		t.Errorf("Analyze() error = %v, want missing file path", err)
 	}
 }

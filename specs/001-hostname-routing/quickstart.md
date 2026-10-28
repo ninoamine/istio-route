@@ -27,10 +27,12 @@ endpoint, or status data is labeled unavailable.
 ## Output Format Checks
 
 ```sh
-./istio-route -f testdata/manifests/combined.yaml --output text shop.example.com
-./istio-route -f testdata/manifests/combined.yaml --output json shop.example.com
-./istio-route -f testdata/manifests/combined.yaml --output yaml shop.example.com
-./istio-route -f testdata/manifests/combined.yaml --output mermaid shop.example.com
+./istio-route -f testdata/manifests/mixed.yaml --output text shop.example.com
+./istio-route -f testdata/manifests/mixed.yaml --output json shop.example.com
+./istio-route -f testdata/manifests/mixed.yaml --output yaml shop.example.com
+./istio-route -f testdata/manifests/mixed.yaml --output mermaid shop.example.com
+NO_COLOR=1 ./istio-route -f testdata/manifests/mixed.yaml --output text shop.example.com
+./istio-route -f testdata/manifests/mixed.yaml --no-color shop.example.com
 ```
 
 Expected outcome: all formats describe the same routes, destinations, conditions,
@@ -51,8 +53,8 @@ is unavailable, the command continues with an informational message for that fam
 ## Not-Found and Diagnostic Checks
 
 ```sh
-./istio-route -f testdata/manifests/combined.yaml absent.example.com
-./istio-route -f testdata/manifests/rejected-route.yaml shop.example.com
+./istio-route -f testdata/manifests/mixed.yaml absent.example.com
+./istio-route -f testdata/manifests/missing-reference-grant.yaml shop.example.com
 ```
 
 Expected outcome: an unmatched hostname gives an actionable message and exit code 3.

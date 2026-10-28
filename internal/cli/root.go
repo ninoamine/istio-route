@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 
 	"github.com/ninoamine/istio-route/internal/model"
 	"github.com/ninoamine/istio-route/internal/render"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
 	ErrUsage               = errors.New("invalid command usage")
 	ErrHostnameNotFound    = errors.New("hostname not found")
 	ErrAnalysisUnavailable = errors.New("analysis service is not configured")
-	ErrOutputUnavailable   = errors.New("output format is not implemented yet")
 )
 
 type Flags struct {
@@ -35,6 +36,17 @@ type Request struct {
 
 type AnalysisService interface {
 	Analyze(context.Context, Request) (model.Analysis, error)
+}
+
+func colorEnabled(output io.Writer, noColor bool) bool {
+	if noColor {
+		return false
+	}
+	if _, disabled := os.LookupEnv("NO_COLOR"); disabled {
+		return false
+	}
+	file, ok := output.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Command {
@@ -58,13 +70,21 @@ func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Co
 				Hostname: args[0],
 				Flags:    flags,
 			})
+			for _, family := range analysis.Source.Families {
+				if !family.Available {
+					slog.Info("skipping unavailable resource family", "family", family.Family, "reason", family.Reason)
+				}
+			}
 			if err != nil {
 				return err
 			}
-			if flags.Output != "text" {
-				return fmt.Errorf("%w: %q", ErrOutputUnavailable, flags.Output)
+			report, err := render.Render(analysis, flags.Output, render.Options{
+				Color: colorEnabled(cmd.OutOrStdout(), flags.NoColor),
+			})
+			if err != nil {
+				return fmt.Errorf("render %s report: %w", flags.Output, err)
 			}
-			_, err = fmt.Fprint(cmd.OutOrStdout(), render.Text(analysis))
+			_, err = fmt.Fprint(cmd.OutOrStdout(), report)
 			if err != nil {
 				return fmt.Errorf("write analysis report: %w", err)
 			}

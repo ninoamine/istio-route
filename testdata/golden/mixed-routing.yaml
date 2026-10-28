@@ -1,0 +1,88 @@
+entryPoints:
+- hostname: shop.example.com
+  name: https
+  origin: Istio
+  port: 443
+  protocol: HTTPS
+  resource:
+    group: networking.istio.io
+    kind: Gateway
+    name: public-gw
+    namespace: istio-system
+    version: v1
+- conditions:
+  - status: "True"
+    type: Programmed
+  hostname: shop.example.com
+  name: https
+  origin: Gateway API
+  port: 443
+  protocol: HTTPS
+  resource:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: edge-gw
+    namespace: infra
+    version: v1
+findings:
+- code: mixed-api-hostname
+  message: hostname is served by both routing APIs
+  severity: warning
+hostname: shop.example.com
+routes:
+- origin: Istio
+  parentRefs:
+  - group: networking.istio.io
+    kind: Gateway
+    name: public-gw
+    namespace: istio-system
+    version: v1
+  resource:
+    group: networking.istio.io
+    kind: VirtualService
+    name: shop-vs
+    namespace: shop
+    version: v1
+  rules:
+  - destinations:
+    - kind: service
+      name: api
+      namespace: shop
+      port: 8080
+      weight: 100
+    index: 1
+    matches:
+    - path: /api
+      pathType: prefix
+- conditions:
+  - status: "True"
+    type: Accepted
+  origin: Gateway API
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: edge-gw
+    namespace: infra
+    version: v1
+  resource:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: shop-route
+    namespace: shop
+    version: v1
+  rules:
+  - destinations:
+    - kind: service
+      name: api-v2
+      namespace: shop
+      port: 8080
+      weight: 100
+    filters:
+    - details:
+        path: /v2
+      type: URLRewrite
+    index: 1
+source:
+  files:
+  - mixed.yaml
+  mode: files

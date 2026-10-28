@@ -1,0 +1,87 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: shop-gateway
+  namespace: shop
+spec:
+  selector:
+    app: ingress
+  servers:
+    - name: https
+      port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - shop.example.com
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: shop-istio
+  namespace: shop
+spec:
+  hosts:
+    - shop.example.com
+  gateways:
+    - shop-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /istio
+      route:
+        - destination:
+            host: api.shop.svc.cluster.local
+            port:
+              number: 8080
+          weight: 100
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: example
+spec:
+  controllerName: example.com/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: edge
+  namespace: shop
+spec:
+  gatewayClassName: example
+  listeners:
+    - name: https
+      hostname: shop.example.com
+      port: 443
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: shop-gateway-api
+  namespace: shop
+spec:
+  parentRefs:
+    - name: edge
+      sectionName: https
+  hostnames:
+    - shop.example.com
+  rules:
+    - backendRefs:
+        - name: api
+          port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: shop
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

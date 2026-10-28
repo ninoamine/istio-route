@@ -27,6 +27,7 @@ func TestClusterSourceSnapshot(t *testing.T) {
 		wantErr       string
 		wantFamilies  int
 		wantResources int
+		wantAvailable []bool
 	}{
 		{
 			name: "loads all supported resource families",
@@ -37,10 +38,31 @@ func TestClusterSourceSnapshot(t *testing.T) {
 			},
 			wantFamilies:  3,
 			wantResources: 8,
+			wantAvailable: []bool{true, true, true},
 		},
 		{
-			name:         "continues when CRD families are absent",
-			wantFamilies: 3,
+			name:          "continues when CRD families are absent",
+			wantFamilies:  3,
+			wantAvailable: []bool{false, false, false},
+		},
+		{
+			name: "continues when Istio API is absent",
+			discovered: []string{
+				"gateway.networking.k8s.io/v1",
+				"gateway.networking.k8s.io/v1beta1",
+			},
+			wantFamilies:  3,
+			wantResources: 4,
+			wantAvailable: []bool{false, true, true},
+		},
+		{
+			name: "continues when Gateway API is absent",
+			discovered: []string{
+				"networking.istio.io/v1",
+			},
+			wantFamilies:  3,
+			wantResources: 4,
+			wantAvailable: []bool{true, false, false},
 		},
 		{
 			name: "surfaces discovery authorization failures",
@@ -107,6 +129,11 @@ func TestClusterSourceSnapshot(t *testing.T) {
 			if len(snapshot.Metadata.Families) != tt.wantFamilies {
 				t.Fatalf("snapshot families = %d, want %d", len(snapshot.Metadata.Families), tt.wantFamilies)
 			}
+			for i, wantAvailable := range tt.wantAvailable {
+				if got := snapshot.Metadata.Families[i].Available; got != wantAvailable {
+					t.Errorf("family %q available = %t, want %t", snapshot.Metadata.Families[i].Family, got, wantAvailable)
+				}
+			}
 			if len(snapshot.Resources) != tt.wantResources {
 				t.Fatalf("snapshot resources = %d, want %d: %#v", len(snapshot.Resources), tt.wantResources, snapshot.Resources)
 			}
@@ -125,6 +152,21 @@ func TestClusterSourceSnapshot(t *testing.T) {
 					Group: got.Identity.Group, Version: got.Identity.Version, Kind: got.Identity.Kind,
 				}) {
 					t.Errorf("resource GVK = %#v, identity = %#v", got.GVK, got.Identity)
+				}
+			}
+			for _, action := range coreClient.Actions() {
+				if action.GetVerb() != "get" && action.GetVerb() != "list" {
+					t.Errorf("core client used non-read action %q", action.GetVerb())
+				}
+			}
+			for _, action := range istioClient.Actions() {
+				if action.GetVerb() != "list" {
+					t.Errorf("Istio client used unexpected action %q", action.GetVerb())
+				}
+			}
+			for _, action := range gatewayClient.Actions() {
+				if action.GetVerb() != "list" {
+					t.Errorf("Gateway API client used unexpected action %q", action.GetVerb())
 				}
 			}
 		})
