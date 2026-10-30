@@ -22,11 +22,21 @@ import (
 
 type FilesSource struct {
 	Files []string
+	Stdin io.Reader
 }
 
 func (s *FilesSource) Snapshot(ctx context.Context) (Snapshot, error) {
 	if len(s.Files) == 0 {
 		return Snapshot{}, &Error{Mode: ModeFiles, Err: fmt.Errorf("at least one manifest file is required")}
+	}
+	stdinCount := 0
+	for _, path := range s.Files {
+		if path == "-" {
+			stdinCount++
+		}
+	}
+	if stdinCount > 1 {
+		return Snapshot{}, &Error{Mode: ModeFiles, Err: fmt.Errorf("standard input may be specified only once")}
 	}
 	scheme, err := manifestScheme()
 	if err != nil {
@@ -40,7 +50,7 @@ func (s *FilesSource) Snapshot(ctx context.Context) (Snapshot, error) {
 	}
 	seen := make(map[string]string)
 	for _, path := range s.Files {
-		resources, loadErr := readManifestFile(ctx, path, scheme)
+		resources, loadErr := readManifestFile(ctx, path, scheme, s.Stdin)
 		if loadErr != nil {
 			return Snapshot{}, &Error{Mode: ModeFiles, File: path, Err: loadErr}
 		}
@@ -81,8 +91,22 @@ func manifestScheme() (*runtime.Scheme, error) {
 	return scheme, nil
 }
 
-func readManifestFile(ctx context.Context, path string, scheme *runtime.Scheme) ([]Resource, error) {
-	contents, err := os.ReadFile(path)
+func readManifestFile(ctx context.Context, path string, scheme *runtime.Scheme, stdin io.Reader) ([]Resource, error) {
+	var (
+		contents []byte
+		err      error
+	)
+	if path == "-" {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("read manifest: %w", err)
+		}
+		if stdin == nil {
+			stdin = os.Stdin
+		}
+		contents, err = io.ReadAll(stdin)
+	} else {
+		contents, err = os.ReadFile(path)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("read manifest: %w", err)
 	}
