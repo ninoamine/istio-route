@@ -22,6 +22,10 @@ func runWithService(args []string, stdout, stderr io.Writer, service cli.Analysi
 	command.SetArgs(args)
 	if err := command.Execute(); err != nil {
 		switch {
+		case errors.Is(err, cli.ErrTestInvalid):
+			return reportError(stderr, err, 2)
+		case errors.Is(err, cli.ErrTestFailure):
+			return reportError(stderr, err, 1)
 		case errors.Is(err, cli.ErrUsage):
 			return reportError(stderr, err, 2)
 		case errors.Is(err, cli.ErrHostnameNotFound):

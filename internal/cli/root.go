@@ -25,6 +25,7 @@ type Flags struct {
 	Context    string
 	Namespace  string
 	Files      []string
+	Stdin      io.Reader
 	Output     string
 	NoColor    bool
 }
@@ -66,9 +67,11 @@ func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Co
 			if service == nil {
 				return ErrAnalysisUnavailable
 			}
+			requestFlags := flags
+			requestFlags.Stdin = cmd.InOrStdin()
 			analysis, err := service.Analyze(cmd.Context(), Request{
 				Hostname: args[0],
-				Flags:    flags,
+				Flags:    requestFlags,
 			})
 			for _, family := range analysis.Source.Families {
 				if !family.Available {
@@ -105,6 +108,7 @@ func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Co
 	cmd.Flags().BoolVar(&flags.NoColor, "no-color", false, "Disable colored text output")
 	cmd.Version = "dev"
 	cmd.InitDefaultVersionFlag()
+	cmd.AddCommand(newTestCommand(stdout, stderr))
 
 	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {
 		switch flags.Output {

@@ -2,6 +2,8 @@ package source
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -143,6 +145,90 @@ metadata:
 	if _, err := (&FilesSource{Files: []string{file}}).Snapshot(ctx); err == nil || !strings.Contains(err.Error(), "context canceled") {
 		t.Fatalf("Snapshot() error = %v, want context cancellation", err)
 	}
+}
+
+func TestFilesSourceReadsStandardInput(t *testing.T) {
+	tests := []struct {
+		name        string
+		reader      io.Reader
+		ctx         context.Context
+		wantCount   int
+		wantErrText string
+	}{
+		{
+			name: "multiple YAML documents",
+			reader: strings.NewReader(`apiVersion: v1
+kind: Service
+metadata:
+  name: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+`),
+			ctx:       context.Background(),
+			wantCount: 2,
+		},
+		{
+			name:        "reader error",
+			reader:      failingReader{err: errors.New("stdin read failed")},
+			ctx:         context.Background(),
+			wantErrText: "stdin read failed",
+		},
+		{
+			name:        "canceled context",
+			reader:      strings.NewReader("apiVersion: v1\nkind: Service\nmetadata:\n  name: api\n"),
+			ctx:         canceledContext(t),
+			wantErrText: "context canceled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot, err := (&FilesSource{Files: []string{"-"}, Stdin: tt.reader}).Snapshot(tt.ctx)
+			if tt.wantErrText != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrText) {
+					t.Fatalf("Snapshot() error = %v, want substring %q", err, tt.wantErrText)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Snapshot() error = %v", err)
+			}
+			if got := len(snapshot.Resources); got != tt.wantCount {
+				t.Errorf("resource count = %d, want %d", got, tt.wantCount)
+			}
+			if len(snapshot.Metadata.Files) != 1 || snapshot.Metadata.Files[0] != "-" {
+				t.Errorf("source files = %v, want [-]", snapshot.Metadata.Files)
+			}
+		})
+	}
+}
+
+func TestFilesSourceRejectsRepeatedStandardInput(t *testing.T) {
+	_, err := (&FilesSource{
+		Files: []string{"-", "-"},
+		Stdin: strings.NewReader("apiVersion: v1\nkind: Service\nmetadata:\n  name: api\n"),
+	}).Snapshot(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "standard input may be specified only once") {
+		t.Fatalf("Snapshot() error = %v, want repeated stdin error", err)
+	}
+}
+
+type failingReader struct {
+	err error
+}
+
+func (r failingReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
+func canceledContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
 }
 
 func writeManifest(t *testing.T, name, contents string) string {
