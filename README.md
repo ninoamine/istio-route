@@ -1,12 +1,10 @@
 # istio-route
 
-`istio-route` is a read-only command-line tool for tracing hostnames through Istio
-and Kubernetes Gateway API configuration and testing expected routing behavior
-against rendered manifests with Gherkin feature files. Use `istio-route test` to
-run those behavior checks in CI; see
+`istio-route` is a read-only command-line tool that traces hostnames through Istio
+and Kubernetes Gateway API configuration, showing matching entry points, routes,
+rules, destinations, and actionable findings. It also tests expected routing
+behavior against rendered manifests with Gherkin feature files; see
 [Test rendered routing behavior](#test-rendered-routing-behavior).
-Hostname tracing shows matching entry points, attached routes, ordered rules,
-destinations, and actionable findings.
 
 For a hostname, it follows the configuration chain from Gateway/listener through
 matching routes and rules to backend Services and their ready endpoints and Pods.
@@ -39,6 +37,9 @@ shop.example.com
 
 The same relationships can be rendered as a Mermaid diagram:
 
+<details>
+<summary>Show the routing diagram</summary>
+
 ```mermaid
 flowchart TD
   host["shop.example.com"]
@@ -66,9 +67,32 @@ flowchart TD
   host --> warning
 ```
 
-## Build
+</details>
 
-Requires Go 1.27 or newer.
+## Install
+
+Download and verify the Linux amd64 release archive (replace `0.1.0` with the
+release version and `linux_amd64` with your platform):
+
+```sh
+set -euo pipefail
+VERSION=0.1.0
+ARCHIVE="istio-route_${VERSION}_linux_amd64.tar.gz"
+RELEASE_URL="https://github.com/ninoamine/istio-route/releases/download/v${VERSION}"
+
+curl -fLO "${RELEASE_URL}/${ARCHIVE}"
+curl -fLO "${RELEASE_URL}/checksums.txt"
+grep "  ${ARCHIVE}$" checksums.txt | sha256sum --check
+tar -xzf "$ARCHIVE" istio-route
+sudo install istio-route /usr/local/bin/istio-route
+```
+
+For other platforms, choose the matching archive from the
+[GitHub releases](https://github.com/ninoamine/istio-route/releases) page.
+
+## Build from source
+
+Building from source requires Go 1.27 or newer.
 
 ```sh
 go build -o istio-route ./cmd/istio-route
@@ -104,6 +128,21 @@ connect to a cluster, or send traffic:
   testdata/features/routing-passes.feature
 ```
 
+The included feature has a scenario like this:
+
+```gherkin
+Background:
+  When I trace the hostname "shop.example.com"
+
+Scenario: Production hostname is attached to the gateway
+  Then the hostname should be found
+  And it should be exposed through gateway "shop-gateway"
+  And route 1 should be "VirtualService" "shop/shop"
+  And rule 1 of route 1 should match path prefix "/api"
+  And rule 1 of route 1 should send traffic to service "api" on port 8080
+  And the traffic split for rule 1 of route 1 should be 90% "v1" and 10% "v2"
+```
+
 Use `-f -` to read one manifest stream from stdin. For multiple environments,
 repeat `--manifests name=file`; repeated names combine files into one set:
 
@@ -123,20 +162,22 @@ files.
 
 The fixed supported step vocabulary and its field assertions are documented in
 [`step-reference.md`](./specs/002-routing-behavior-testing/step-reference.md).
-Failures identify the feature step and expected versus actual trace values.
+Failures identify the feature step and expected versus actual trace values. For
+example, the included failing feature reports:
+
+```text
+FAIL: Wrong route identity is reported (routing-fails.feature:3)
+  routing-fails.feature:5: route 1 should be "HTTPRoute" "shop/shop": expected route 1 is "HTTPRoute" "shop/shop", got VirtualService shop/shop
+1 scenarios: 0 passed, 1 failed
+```
+
 `--junit` writes one combined XML report, including each outline example and
 environment execution. CI examples that upload this report are in the
 [behavior-testing quickstart](./specs/002-routing-behavior-testing/quickstart.md).
 
-Test-command statuses are separate from hostname-inspection statuses:
-
-| Code | `istio-route test` meaning |
-| --- | --- |
-| `0` | All scenario assertions passed |
-| `1` | One or more scenario assertions failed |
-| `2` | Invalid feature, input, step, or report output |
-
-Invalid input or report-output errors take precedence over assertion failures.
+Invalid behavior-test inputs or report-output errors take precedence over
+assertion failures. See [Exit codes](#exit-codes) for the statuses of both
+commands.
 
 ## Try against a live cluster
 
@@ -204,12 +245,15 @@ manifest files supplied on the command line and makes no cluster requests.
 
 ## Exit codes
 
-| Code | Meaning |
-| --- | --- |
-| `0` | Analysis succeeded and a matching route was found |
-| `1` | Runtime, source, parsing, or rendering error |
-| `2` | Invalid command usage |
-| `3` | No supported route matched the requested hostname |
+| Command | Code | Meaning |
+| --- | --- | --- |
+| `istio-route test` | `0` | All scenario assertions passed |
+| `istio-route test` | `1` | One or more scenario assertions failed |
+| `istio-route test` | `2` | Invalid feature, input, step, or report output |
+| Hostname trace | `0` | Analysis succeeded and a matching route was found |
+| Hostname trace | `1` | Runtime, source, parsing, or rendering error |
+| Hostname trace | `2` | Invalid command usage |
+| Hostname trace | `3` | No supported route matched the requested hostname |
 
 A matching route with unhealthy conditions or unresolved references is reported
 with findings; it is not treated as hostname-not-found.
@@ -218,8 +262,10 @@ with findings; it is not treated as hostname-not-found.
 
 The project uses spec-driven development. Feature requirements, design decisions,
 CLI contracts, implementation tasks, and validation notes are kept under
-[`specs/001-hostname-routing/`](./specs/001-hostname-routing/); the shared
-templates, workflow helpers, and project principles live in [`.specify/`](./.specify/).
+[`specs/001-hostname-routing/`](./specs/001-hostname-routing/) and
+[`specs/002-routing-behavior-testing/`](./specs/002-routing-behavior-testing/);
+the shared templates, workflow helpers, and project principles live in
+[`.specify/`](./.specify/).
 For a feature change, contributors can review those documents before editing,
 update the relevant tasks and validation notes as implementation evolves, and keep
 the runtime code organized under `cmd/` and `internal/`. These are contributor
@@ -233,28 +279,4 @@ go vet ./...
 golangci-lint run
 ```
 
-## Build your first release
-
-Install GoReleaser, then validate the configuration and create a local snapshot
-without publishing anything:
-
-```sh
-go install github.com/goreleaser/goreleaser/v2@latest
-goreleaser check
-goreleaser release --snapshot --clean
-```
-
-The snapshot artifacts are written to `dist/`. To publish the first GitHub
-release, make sure the changes are pushed and CI passes, then create and push a
-version tag (replace `v0.1.0` with the version you intend to release):
-
-```sh
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
-```
-
-Pushing a `v*` tag triggers the release job in
-[`ci.yml`](./.github/workflows/ci.yml). It builds archives for Linux, macOS, and
-Windows on amd64 and arm64, creates checksums, and publishes a GitHub Release.
-The workflow uses GitHub's provided token with repository contents write
-permission; no personal access token is needed.
+See [`RELEASING.md`](./RELEASING.md) for maintainer release instructions.
