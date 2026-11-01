@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -183,6 +184,32 @@ func TestRootCommandWritesAnalysisToStdout(t *testing.T) {
 	}
 	if got := stderr.String(); got != "" {
 		t.Errorf("stderr = %q, want empty", got)
+	}
+}
+
+func TestRootCommandPassesStdinToOfflineAnalysis(t *testing.T) {
+	const manifest = "apiVersion: v1\nkind: Service\nmetadata:\n  name: api\n"
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	service := &fakeAnalysisService{
+		analysis: model.Analysis{Hostname: "shop.example.com"},
+	}
+	command := NewRootCommand(service, stdout, stderr)
+	command.SetIn(strings.NewReader(manifest))
+	command.SetArgs([]string{"-f", "-", "shop.example.com"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if service.request.Flags.Stdin == nil {
+		t.Fatal("request stdin is nil, want command input reader")
+	}
+	got, err := io.ReadAll(service.request.Flags.Stdin)
+	if err != nil {
+		t.Fatalf("read request stdin: %v", err)
+	}
+	if string(got) != manifest {
+		t.Errorf("request stdin = %q, want %q", got, manifest)
 	}
 }
 

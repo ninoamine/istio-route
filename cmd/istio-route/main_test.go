@@ -25,6 +25,7 @@ func TestRunExitCodes(t *testing.T) {
 		service    cli.AnalysisService
 		wantCode   int
 		wantStderr string
+		wantStdout string
 	}{
 		{
 			name:     "help succeeds",
@@ -50,6 +51,31 @@ func TestRunExitCodes(t *testing.T) {
 			wantCode:   3,
 			wantStderr: "hostname not found",
 		},
+		{
+			name:       "behavior tests pass",
+			args:       []string{"test", "-f", "../../testdata/manifests/behavior.yaml", "../../testdata/features/routing-passes.feature"},
+			wantCode:   0,
+			wantStdout: "Shop traffic routing",
+		},
+		{
+			name:       "behavior assertion failure",
+			args:       []string{"test", "-f", "../../testdata/manifests/behavior.yaml", "../../testdata/features/routing-fails.feature"},
+			wantCode:   1,
+			wantStderr: cli.ErrTestFailure.Error(),
+			wantStdout: "expected route 1 is",
+		},
+		{
+			name:       "invalid behavior input",
+			args:       []string{"test", "../../testdata/features/routing-passes.feature"},
+			wantCode:   2,
+			wantStderr: cli.ErrTestInvalid.Error(),
+		},
+		{
+			name:       "named manifests check multiple environments",
+			args:       []string{"test", "--manifests", "prod=../../testdata/manifests/behavior-prod.yaml", "--manifests", "staging=../../testdata/manifests/behavior-staging.yaml", "../../testdata/features/environments.feature"},
+			wantCode:   0,
+			wantStdout: "6 scenarios: 6 passed, 0 failed",
+		},
 	}
 
 	for _, tt := range tests {
@@ -63,7 +89,10 @@ func TestRunExitCodes(t *testing.T) {
 			if tt.wantStderr != "" && !bytes.Contains(stderr.Bytes(), []byte(tt.wantStderr)) {
 				t.Errorf("stderr = %q, want substring %q", stderr.String(), tt.wantStderr)
 			}
-			if tt.wantCode != 0 && stdout.Len() != 0 {
+			if tt.wantStdout != "" && !bytes.Contains(stdout.Bytes(), []byte(tt.wantStdout)) {
+				t.Errorf("stdout = %q, want substring %q", stdout.String(), tt.wantStdout)
+			}
+			if tt.wantCode != 0 && tt.wantStdout == "" && stdout.Len() != 0 {
 				t.Errorf("stdout = %q, want empty when command fails", stdout.String())
 			}
 		})

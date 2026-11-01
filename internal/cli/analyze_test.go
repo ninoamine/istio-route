@@ -51,6 +51,38 @@ spec:
 	}
 }
 
+func TestDefaultAnalysisServiceReadsOfflineStdinAndReturnsNotFound(t *testing.T) {
+	manifest := `apiVersion: v1
+kind: Service
+metadata:
+  name: unrelated
+  namespace: shop
+`
+	service := NewDefaultAnalysisService()
+	analysis, err := service.Analyze(context.Background(), Request{
+		Hostname: "absent.example.com",
+		Flags: Flags{
+			Files: []string{"-"},
+			Stdin: strings.NewReader(manifest),
+		},
+	})
+	if !errors.Is(err, ErrHostnameNotFound) {
+		t.Fatalf("Analyze() error = %v, want ErrHostnameNotFound", err)
+	}
+	if analysis.Hostname != "absent.example.com" {
+		t.Errorf("analysis hostname = %q, want absent.example.com", analysis.Hostname)
+	}
+	if analysis.Source.Mode != model.SourceModeFiles {
+		t.Errorf("analysis source mode = %q, want files", analysis.Source.Mode)
+	}
+	if len(analysis.Source.Files) != 1 || analysis.Source.Files[0] != "-" {
+		t.Errorf("analysis source files = %v, want [-]", analysis.Source.Files)
+	}
+	if len(analysis.Routes) != 0 {
+		t.Errorf("analysis routes = %v, want none", analysis.Routes)
+	}
+}
+
 func TestDefaultAnalysisServiceSurfacesOfflineSourceErrors(t *testing.T) {
 	service := NewDefaultAnalysisService()
 	_, err := service.Analyze(context.Background(), Request{

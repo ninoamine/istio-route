@@ -1,0 +1,104 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: shop-gateway
+  namespace: shop
+spec:
+  selector:
+    app: ingress
+  servers:
+    - name: https
+      port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - shop.example.com
+      tls:
+        mode: SIMPLE
+        credentialName: shop-tls
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: shop
+  namespace: shop
+spec:
+  hosts:
+    - shop.example.com
+  gateways:
+    - shop-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api
+      route:
+        - destination:
+            host: api.shop.svc.cluster.local
+            subset: v1
+            port:
+              number: 8080
+          weight: 90
+        - destination:
+            host: api.shop.svc.cluster.local
+            subset: v2
+            port:
+              number: 8080
+          weight: 10
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: api
+  namespace: shop
+spec:
+  host: api.shop.svc.cluster.local
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: shop
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: api-slice
+  namespace: shop
+  labels:
+    kubernetes.io/service-name: api
+addressType: IPv4
+ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 10.0.0.10
+    conditions:
+      ready: true
+    targetRef:
+      apiVersion: v1
+      kind: Pod
+      name: api-0
+      namespace: shop
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: api-0
+  namespace: shop
+status:
+  phase: Running
+  conditions:
+    - type: Ready
+      status: "True"

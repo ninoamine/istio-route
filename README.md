@@ -1,8 +1,12 @@
 # istio-route
 
-`istio-route` is a read-only command-line tool that traces a hostname through
-Istio and Kubernetes Gateway API configuration. It shows matching entry points,
-attached routes, ordered rules, destinations, and actionable findings.
+`istio-route` is a read-only command-line tool for tracing hostnames through Istio
+and Kubernetes Gateway API configuration and testing expected routing behavior
+against rendered manifests with Gherkin feature files. Use `istio-route test` to
+run those behavior checks in CI; see
+[Test rendered routing behavior](#test-rendered-routing-behavior).
+Hostname tracing shows matching entry points, attached routes, ordered rules,
+destinations, and actionable findings.
 
 For a hostname, it follows the configuration chain from Gateway/listener through
 matching routes and rules to backend Services and their ready endpoints and Pods.
@@ -87,6 +91,52 @@ The examples under [`testdata/manifests/`](./testdata/manifests/) are intentiona
 small and safe to inspect. `missing-reference-grant.yaml` demonstrates a rejected
 cross-namespace reference; `endpoints.yaml` includes a Service, EndpointSlice, and
 Pod for endpoint inspection.
+
+## Test rendered routing behavior
+
+The `test` subcommand evaluates Gherkin feature files against rendered manifests
+using the same offline trace as hostname inspection. It does not render charts,
+connect to a cluster, or send traffic:
+
+```sh
+./istio-route test \
+  -f testdata/manifests/behavior.yaml \
+  testdata/features/routing-passes.feature
+```
+
+Use `-f -` to read one manifest stream from stdin. For multiple environments,
+repeat `--manifests name=file`; repeated names combine files into one set:
+
+```sh
+./istio-route test \
+  --manifests prod=rendered-prod.yaml \
+  --manifests staging=rendered-staging.yaml \
+  --junit routing-results.xml \
+  features/
+```
+
+Tag environment-specific scenarios with `@prod` or `@staging`. They run only
+against the matching named set; untagged scenarios and scenarios with other tags
+run once per set. `Given the manifests for "prod"` confirms the current set and
+cannot switch it. Feature directories are searched recursively for `.feature`
+files.
+
+The fixed supported step vocabulary and its field assertions are documented in
+[`step-reference.md`](./specs/002-routing-behavior-testing/step-reference.md).
+Failures identify the feature step and expected versus actual trace values.
+`--junit` writes one combined XML report, including each outline example and
+environment execution. CI examples that upload this report are in the
+[behavior-testing quickstart](./specs/002-routing-behavior-testing/quickstart.md).
+
+Test-command statuses are separate from hostname-inspection statuses:
+
+| Code | `istio-route test` meaning |
+| --- | --- |
+| `0` | All scenario assertions passed |
+| `1` | One or more scenario assertions failed |
+| `2` | Invalid feature, input, step, or report output |
+
+Invalid input or report-output errors take precedence over assertion failures.
 
 ## Try against a live cluster
 
