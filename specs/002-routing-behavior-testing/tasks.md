@@ -64,16 +64,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] Add table-driven environment-selection tests in `internal/behavior/environments_test.go` covering matching tags, unmatched tags, untagged scenarios across all sets, repeated files per set, duplicate/empty names, unknown environments, and conflicting explicit manifest assertions.
-- [ ] T018 [P] [US2] Add production and staging manifest fixtures in `testdata/manifests/behavior-prod.yaml` and `testdata/manifests/behavior-staging.yaml`, with deliberately different host routing or destination values.
-- [ ] T019 [P] [US2] Add Gherkin fixtures in `testdata/features/environments.feature` covering `@prod`, `@staging`, and untagged scenarios, plus a matching explicit manifest-set assertion for each tagged scenario.
+- [X] T017 [P] [US2] Add table-driven environment-selection tests in `internal/behavior/environments_test.go` covering matching tags, unmatched tags, untagged scenarios across all sets, repeated files per set, duplicate/empty names, unknown environments, and conflicting explicit manifest assertions.
+- [X] T018 [P] [US2] Add production and staging manifest fixtures in `testdata/manifests/behavior-prod.yaml` and `testdata/manifests/behavior-staging.yaml`, with deliberately different host routing or destination values.
+- [X] T019 [P] [US2] Add Gherkin fixtures in `testdata/features/environments.feature` covering `@prod`, `@staging`, and untagged scenarios, plus a matching explicit manifest-set assertion for each tagged scenario.
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] Implement manifest-set parsing and validation in `internal/behavior/environments.go`; group repeated `name=file` values, require non-empty names and paths, reject duplicate incompatible definitions, reject unnamed/named mixtures, and reject more than one stdin path.
-- [ ] T021 [US2] Implement per-environment Godog tag expressions in `internal/behavior/runner.go` so `@name` scenarios run only for that named set, scenarios without any supplied environment tag run for every set, and non-environment tags remain ordinary filters.
-- [ ] T022 [US2] Implement the explicit `Given the manifests for "name"` confirmation step in `internal/behavior/steps.go`; require it to match the current execution and reject unknown or conflicting names without switching manifest context.
-- [ ] T023 [US2] Add a multi-environment integration test in `internal/cli/test_test.go` using both named fixture sets and `testdata/features/environments.feature`; assert per-environment execution counts and outcomes for tagged and untagged scenarios.
+- [X] T020 [US2] Implement manifest-set parsing and validation in `internal/behavior/environments.go`; group repeated `name=file` values, require non-empty names and paths, reject duplicate incompatible definitions, reject unnamed/named mixtures, and reject more than one stdin path.
+- [X] T021 [US2] Implement per-environment Godog tag expressions in `internal/behavior/runner.go` so `@name` scenarios run only for that named set, scenarios without any supplied environment tag run for every set, and non-environment tags remain ordinary filters.
+- [X] T022 [US2] Implement the explicit `Given the manifests for "name"` confirmation step in `internal/behavior/steps.go`; require it to match the current execution and reject unknown or conflicting names without switching manifest context.
+- [X] T023 [US2] Add a multi-environment integration test in `internal/cli/test_test.go` using both named fixture sets and `testdata/features/environments.feature`; assert per-environment execution counts and outcomes for tagged and untagged scenarios.
 
 **Checkpoint**: One invocation can verify environment-specific and shared expectations without cross-environment state leakage.
 
@@ -87,18 +87,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] Add table-driven matcher tests in `internal/behavior/suggest_test.go` for undefined and ambiguous steps, exact and near matches, stable tie handling, and no suggestion when supported patterns are unrelated.
-- [ ] T025 [P] [US3] Add JUnit writer tests in `internal/behavior/report_test.go` that decode generated XML and verify one testcase per scenario/example/environment execution, failures and errors, and correct counts.
-- [ ] T026 [P] [US3] Add CLI tests in `internal/cli/test_test.go` for exit status 2 on malformed feature, unknown/ambiguous step, unreadable manifest, and unwritable report; verify invalid-input status takes precedence over assertion failures and old hostname exit codes are unchanged.
+- [X] T024 [P] [US3] Add table-driven matcher tests in `internal/behavior/suggest_test.go` for undefined and ambiguous steps, exact and near matches, stable tie handling, and no suggestion when supported patterns are unrelated.
+- [X] T025 [P] [US3] Add JUnit writer tests in `internal/behavior/report_test.go` that decode generated XML and verify one testcase per scenario/example/environment execution, failures and errors, and correct counts.
+- [X] T026 [P] [US3] Add CLI tests in `internal/cli/test_test.go` for exit status 2 on malformed feature, unknown/ambiguous step, unreadable manifest, and unwritable report; verify invalid-input status takes precedence over assertion failures and old hostname exit codes are unchanged.
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Implement a Godog formatter/event collector in `internal/behavior/formatter.go` that records feature, expanded scenario, step, failure, undefined-step, and ambiguous-step events with source locations across repeated environment runs.
-- [ ] T028 [US3] Implement closest-supported-step suggestions in `internal/behavior/suggest.go` using the fixed pattern catalog from `internal/behavior/steps.go`; include candidate text in undefined- and ambiguous-step diagnostics and avoid suggesting unrelated patterns.
-- [ ] T029 [US3] Implement human-readable per-feature and per-scenario reporting in `internal/behavior/report.go`; show environment when applicable and include each failed step's expected and actual trace information.
-- [ ] T030 [US3] Implement a combined JUnit XML writer in `internal/behavior/report.go` with one testcase for every scenario execution, including outline examples and environment runs; propagate create, encode, and write errors to the CLI.
-- [ ] T031 [US3] Wire formatter results and `--junit` output through `internal/cli/test.go`; write results to stdout, diagnostics to stderr, and return status 2 for invalid inputs/report errors before considering assertion-failure status 1.
-- [ ] T032 [US3] Document `istio-route test`, single and named manifest inputs, stdin, environment tags, step vocabulary, JUnit output, and test-only exit codes in `README.md`; include GitHub Actions and GitLab CI artifact-publication examples in `specs/002-routing-behavior-testing/quickstart.md` and the complete fixed patterns in `specs/002-routing-behavior-testing/step-reference.md`.
+- [X] T027 [US3] Implement a Godog formatter/event collector in `internal/behavior/formatter.go` that records feature, expanded scenario, step, failure, undefined-step, and ambiguous-step events with source locations across repeated environment runs.
+- [X] T028 [US3] Implement closest-supported-step suggestions in `internal/behavior/suggest.go` using the fixed pattern catalog from `internal/behavior/steps.go`; include candidate text in undefined- and ambiguous-step diagnostics and avoid suggesting unrelated patterns.
+- [X] T029 [US3] Implement human-readable per-feature and per-scenario reporting in `internal/behavior/report.go`; show environment when applicable and include each failed step's expected and actual trace information.
+- [X] T030 [US3] Implement a combined JUnit XML writer in `internal/behavior/report.go` with one testcase for every scenario execution, including outline examples and environment runs; propagate create, encode, and write errors to the CLI.
+- [X] T031 [US3] Wire formatter results and `--junit` output through `internal/cli/test.go`; write results to stdout, diagnostics to stderr, and return status 2 for invalid inputs/report errors before considering assertion-failure status 1.
+- [X] T032 [US3] Document `istio-route test`, single and named manifest inputs, stdin, environment tags, step vocabulary, JUnit output, and test-only exit codes in `README.md`; include GitHub Actions and GitLab CI artifact-publication examples in `specs/002-routing-behavior-testing/quickstart.md` and the complete fixed patterns in `specs/002-routing-behavior-testing/step-reference.md`.
 
 **Checkpoint**: CI can ingest one combined report and users can identify both actual routing behavior and the closest supported step when a feature is invalid.
 
@@ -108,11 +108,11 @@
 
 **Purpose**: Validate the complete feature, including cross-story behavior and repository quality gates.
 
-- [ ] T033 [P] Add an end-to-end performance test or benchmark in `internal/behavior/runner_test.go` for 100 scenarios evaluated against two manifest sets; measure scenario execution separately from manifest generation and feature discovery, and verify it completes within five seconds on a representative CI runner.
-- [ ] T034 Run `gofumpt` on changed Go files in `internal/behavior/*.go`, `internal/cli/*.go`, `internal/source/*.go`, and `cmd/istio-route/*.go`; verify `go test -race ./...`, `go vet ./...`, and `golangci-lint run` and resolve any failures in those files.
-- [ ] T035 Run every command and expected outcome in `specs/002-routing-behavior-testing/quickstart.md`; correct the quickstart and `README.md` if the actual CLI differs.
-- [ ] T036 Measure `internal/` statement coverage with `go test -coverprofile=/tmp/istio-route-internal.cover` and `go tool cover`; verify coverage remains at or above the constitution's 80% minimum and add focused coverage tests in the relevant `internal/` package test files if it does not.
-- [ ] T037 Add a golden console-report fixture in `testdata/golden/behavior-report.txt` and a comparison test in `internal/behavior/report_test.go`; verify stable per-feature and per-scenario output, including an expected-versus-actual failure.
+- [X] T033 [P] Add an end-to-end performance test or benchmark in `internal/behavior/runner_test.go` for 100 scenarios evaluated against two manifest sets; measure scenario execution separately from manifest generation and feature discovery, and verify it completes within five seconds on a representative CI runner.
+- [X] T034 Run `gofumpt` on changed Go files in `internal/behavior/*.go`, `internal/cli/*.go`, `internal/source/*.go`, and `cmd/istio-route/*.go`; verify `go test -race ./...`, `go vet ./...`, and `golangci-lint run` and resolve any failures in those files.
+- [X] T035 Run every command and expected outcome in `specs/002-routing-behavior-testing/quickstart.md`; correct the quickstart and `README.md` if the actual CLI differs.
+- [X] T036 Measure `internal/` statement coverage with `go test -coverprofile=/tmp/istio-route-internal.cover` and `go tool cover`; verify coverage remains at or above the constitution's 80% minimum and add focused coverage tests in the relevant `internal/` package test files if it does not.
+- [X] T037 Add a golden console-report fixture in `testdata/golden/behavior-report.txt` and a comparison test in `internal/behavior/report_test.go`; verify stable per-feature and per-scenario output, including an expected-versus-actual failure.
 
 ---
 

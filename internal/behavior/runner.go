@@ -1,9 +1,7 @@
 package behavior
 
 import (
-	"bytes"
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -19,38 +17,10 @@ import (
 
 type RunOptions struct {
 	Paths        []string
-	ManifestName string
-	Trace        TraceFunc
+	Environments []Environment
 	Output       io.Writer
 	Diagnostics  io.Writer
 	JUnitPath    string
-}
-
-func writeConsoleReport(output io.Writer, scenarios []scenarioResult) error {
-	passed := 0
-	failed := 0
-	previousFeature := ""
-	for _, scenario := range scenarios {
-		if scenario.feature != previousFeature {
-			if _, err := fmt.Fprintf(output, "Feature: %s (%s)\n", scenario.feature, scenario.uri); err != nil {
-				return err
-			}
-			previousFeature = scenario.feature
-		}
-		if scenario.err == nil {
-			passed++
-			if _, err := fmt.Fprintf(output, "  PASS: %s\n", scenario.name); err != nil {
-				return err
-			}
-			continue
-		}
-		failed++
-		if _, err := fmt.Fprintf(output, "  FAIL: %s (%s:%d)\n    %s\n", scenario.name, scenario.uri, scenario.line, scenario.err); err != nil {
-			return err
-		}
-	}
-	_, err := fmt.Fprintf(output, "%d scenarios: %d passed, %d failed\n", len(scenarios), passed, failed)
-	return err
 }
 
 type RunResult struct {
@@ -59,11 +29,14 @@ type RunResult struct {
 }
 
 type scenarioResult struct {
-	feature string
-	name    string
-	uri     string
-	line    int64
-	err     error
+	feature     string
+	name        string
+	environment string
+	pickleID    string
+	uri         string
+	line        int64
+	err         error
+	steps       []stepEvent
 }
 
 type resultCollector struct {
@@ -73,9 +46,6 @@ type resultCollector struct {
 }
 
 func Run(ctx context.Context, options RunOptions) (RunResult, error) {
-	if options.Trace == nil {
-		return RunResult{}, fmt.Errorf("run behavior tests: trace function is required")
-	}
 	if options.Output == nil {
 		return RunResult{}, fmt.Errorf("run behavior tests: output writer is required")
 	}
@@ -90,13 +60,89 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 		return RunResult{Invalid: true}, fmt.Errorf("run behavior tests: %w", err)
 	}
 
-	var console bytes.Buffer
+	if len(options.Environments) == 0 {
+		return RunResult{Invalid: true}, fmt.Errorf("run behavior tests: at least one manifest environment is required")
+	}
+	environmentNames := make([]string, 0, len(options.Environments))
+	seenEnvironments := make(map[string]struct{}, len(options.Environments))
+	for _, environment := range options.Environments {
+		if environment.Trace == nil {
+			return RunResult{Invalid: true}, fmt.Errorf("run behavior tests: trace function is required for environment %q", environment.Name)
+		}
+		if _, exists := seenEnvironments[environment.Name]; exists {
+			return RunResult{Invalid: true}, fmt.Errorf("run behavior tests: duplicate manifest environment %q", environment.Name)
+		}
+		seenEnvironments[environment.Name] = struct{}{}
+		environmentNames = append(environmentNames, environment.Name)
+	}
+	if len(options.Environments) > 1 {
+		for _, environment := range options.Environments {
+			if environment.Name == "" {
+				return RunResult{Invalid: true}, fmt.Errorf("run behavior tests: cannot mix unnamed and named manifest environments")
+			}
+		}
+	}
+
+	var (
+		result    RunResult
+		scenarios []scenarioResult
+	)
+	for _, environment := range options.Environments {
+		runResult, runScenarios, err := runEnvironment(ctx, paths, environment, environmentNames)
+		if err != nil {
+			return result, err
+		}
+		result.Failed = result.Failed || runResult.Failed
+		result.Invalid = result.Invalid || runResult.Invalid
+		scenarios = append(scenarios, runScenarios...)
+	}
+	if len(scenarios) == 0 {
+		return RunResult{Invalid: true}, fmt.Errorf("read feature files: no scenarios match the supplied manifest environments")
+	}
+	if err := writeConsoleReport(options.Output, scenarios); err != nil {
+		return RunResult{}, fmt.Errorf("write behavior test output: %w", err)
+	}
+	for _, scenario := range scenarios {
+		for _, stepEvent := range scenario.steps {
+			if stepEvent.status != "undefined" && stepEvent.status != "ambiguous" {
+				continue
+			}
+			suggestion := suggestStep(stepEvent.text)
+			if suggestion != "" {
+				if _, err := fmt.Fprintf(
+					options.Diagnostics,
+					"%s:%d: unsupported or ambiguous step %q; closest supported step: %q\n",
+					scenario.uri, stepEvent.line, stepEvent.text, suggestion,
+				); err != nil {
+					return result, fmt.Errorf("write step suggestion: %w", err)
+				}
+			}
+		}
+	}
+
+	if options.JUnitPath != "" {
+		if err := writeJUnit(ctx, options.JUnitPath, scenarios); err != nil {
+			return result, fmt.Errorf("write JUnit report %q: %w", options.JUnitPath, err)
+		}
+	}
+	return result, nil
+}
+
+func runEnvironment(
+	ctx context.Context,
+	paths []string,
+	environment Environment,
+	environmentNames []string,
+) (RunResult, []scenarioResult, error) {
 	collector := &resultCollector{}
+	suiteName, formatter := newFormatterCollector()
+	defer reportFormatterRuns.Delete(suiteName)
 	featureNames := make(map[string]string)
 	godogOptions := &godog.Options{
 		Paths:          paths,
-		Format:         "progress",
-		Output:         &console,
+		Tags:           environmentTagExpression(environment.Name, environmentNames),
+		Format:         reportFormatterName,
+		Output:         io.Discard,
 		NoColors:       true,
 		Strict:         true,
 		Concurrency:    1,
@@ -104,12 +150,13 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 		FS:             diskFeatureFS{},
 	}
 	suite := godog.TestSuite{
-		Name:    "istio-route behavior",
+		Name:    suiteName,
 		Options: godogOptions,
 		ScenarioInitializer: func(scenarioContext *godog.ScenarioContext) {
 			state := &scenarioState{
-				trace:        options.Trace,
-				manifestName: options.ManifestName,
+				trace:            environment.Trace,
+				manifestName:     environment.Name,
+				environmentNames: environmentNames,
 			}
 			scenarioContext.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 				state.reset()
@@ -121,11 +168,13 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 					line = scenario.Location.Line
 				}
 				collector.add(scenarioResult{
-					feature: featureNames[scenario.Uri],
-					name:    scenario.Name,
-					uri:     scenario.Uri,
-					line:    line,
-					err:     scenarioErr,
+					feature:     featureNames[scenario.Uri],
+					name:        scenario.Name,
+					environment: environment.Name,
+					pickleID:    scenario.Id,
+					uri:         scenario.Uri,
+					line:        line,
+					err:         scenarioErr,
 				})
 				if isInvalidStepError(scenarioErr) {
 					collector.setInvalid()
@@ -137,7 +186,7 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	}
 	features, err := suite.RetrieveFeatures()
 	if err != nil {
-		return RunResult{Invalid: true}, fmt.Errorf("read feature files: %w", err)
+		return RunResult{Invalid: true}, nil, fmt.Errorf("read feature files: %w", err)
 	}
 	runnable := 0
 	for _, feature := range features {
@@ -145,7 +194,7 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 		featureNames[feature.Uri] = feature.Feature.Name
 	}
 	if runnable == 0 {
-		return RunResult{Invalid: true}, fmt.Errorf("read feature files: no runnable scenarios found")
+		return RunResult{}, nil, nil
 	}
 
 	exitCode := suite.Run()
@@ -157,28 +206,19 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 		result.Invalid = true
 	}
 	scenarios := collector.snapshot()
-	if err := writeConsoleReport(options.Output, scenarios); err != nil {
-		return RunResult{}, fmt.Errorf("write behavior test output: %w", err)
-	}
-	for _, scenario := range scenarios {
-		if scenario.err == nil || !isInvalidStepError(scenario.err) {
-			continue
+	for index := range scenarios {
+		if feature := formatter.feature(scenarios[index].uri); feature.name != "" {
+			scenarios[index].feature = feature.name
 		}
-		step := undefinedStepText(scenario.err.Error())
-		suggestion := suggestStep(step)
-		if suggestion != "" {
-			if _, err := fmt.Fprintf(options.Diagnostics, "%s: unsupported or ambiguous step %q; closest supported step: %q\n", scenario.uri, step, suggestion); err != nil {
-				return result, fmt.Errorf("write step suggestion: %w", err)
+		if pickle := formatter.scenario(scenarios[index].pickleID); pickle.name != "" {
+			scenarios[index].name = pickle.name
+			if pickle.line != 0 {
+				scenarios[index].line = pickle.line
 			}
 		}
+		scenarios[index].steps = formatter.steps(scenarios[index].pickleID)
 	}
-
-	if options.JUnitPath != "" {
-		if err := writeJUnit(ctx, options.JUnitPath, scenarios); err != nil {
-			return result, fmt.Errorf("write JUnit report %q: %w", options.JUnitPath, err)
-		}
-	}
-	return result, nil
+	return result, scenarios, nil
 }
 
 func (c *resultCollector) add(result scenarioResult) {
@@ -217,19 +257,20 @@ func (c *resultCollector) snapshot() []scenarioResult {
 func isInvalidStepError(err error) bool {
 	return errors.Is(err, godog.ErrUndefined) ||
 		errors.Is(err, godog.ErrAmbiguous) ||
-		errors.Is(err, godog.ErrPending)
+		errors.Is(err, godog.ErrPending) ||
+		errors.Is(err, ErrUnknownEnvironment) ||
+		errors.Is(err, ErrConflictingEnvironment)
 }
 
-func undefinedStepText(message string) string {
-	for _, marker := range []string{
-		godog.ErrUndefined.Error() + ": ",
-		godog.ErrAmbiguous.Error() + ", step text: ",
-	} {
-		if _, after, ok := strings.Cut(message, marker); ok {
-			return strings.TrimSpace(after)
-		}
+func environmentTagExpression(current string, names []string) string {
+	if current == "" || len(names) == 0 {
+		return ""
 	}
-	return message
+	unmatched := make([]string, 0, len(names))
+	for _, name := range names {
+		unmatched = append(unmatched, "~@"+name)
+	}
+	return strings.Join([]string{strings.Join(unmatched, "&&"), "@" + current}, ",")
 }
 
 func discoverFeatureFiles(inputs []string) ([]string, error) {
@@ -303,52 +344,5 @@ func appendFeatureFile(files *[]string, seen map[string]struct{}, path string) e
 	}
 	seen[absolute] = struct{}{}
 	*files = append(*files, absolute)
-	return nil
-}
-
-type junitReport struct {
-	XMLName   xml.Name    `xml:"testsuite"`
-	Name      string      `xml:"name,attr"`
-	Tests     int         `xml:"tests,attr"`
-	Failures  int         `xml:"failures,attr"`
-	TestCases []junitCase `xml:"testcase"`
-}
-
-type junitCase struct {
-	Name      string        `xml:"name,attr"`
-	ClassName string        `xml:"classname,attr,omitempty"`
-	Failure   *junitFailure `xml:"failure,omitempty"`
-}
-
-type junitFailure struct {
-	Message string `xml:"message,attr"`
-	Text    string `xml:",chardata"`
-}
-
-func writeJUnit(ctx context.Context, path string, scenarios []scenarioResult) error {
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("write JUnit report: %w", err)
-	}
-	report := junitReport{Name: "istio-route behavior", Tests: len(scenarios)}
-	for _, scenario := range scenarios {
-		testCase := junitCase{Name: scenario.name, ClassName: scenario.uri}
-		if scenario.err != nil {
-			report.Failures++
-			testCase.Failure = &junitFailure{
-				Message: scenario.err.Error(),
-				Text:    scenario.err.Error(),
-			}
-		}
-		report.TestCases = append(report.TestCases, testCase)
-	}
-	data, err := xml.MarshalIndent(report, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode JUnit XML: %w", err)
-	}
-	data = append([]byte(xml.Header), data...)
-	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("write report file: %w", err)
-	}
 	return nil
 }

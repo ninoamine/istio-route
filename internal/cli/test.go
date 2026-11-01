@@ -20,11 +20,13 @@ var (
 
 func newTestCommand(stdout, stderr io.Writer) *cobra.Command {
 	var (
-		files []string
-		junit string
+		files        []string
+		manifestSets []string
+		junit        string
 	)
 	command := &cobra.Command{
-		Use:           "test [-f <file|->]... [--junit <file>] <feature file|directory>...",
+		Use: "test [-f <file|->]... [--manifests <name>=<file>]... " +
+			"[--junit <file>] <feature file|directory>...",
 		Short:         "Test rendered routing behavior with Gherkin scenarios",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -35,34 +37,38 @@ func newTestCommand(stdout, stderr io.Writer) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(files) == 0 {
-				return fmt.Errorf("%w: at least one rendered manifest file is required with -f", ErrTestInvalid)
-			}
-			snapshot, err := (&source.FilesSource{
-				Files: files,
-				Stdin: cmd.InOrStdin(),
-			}).Snapshot(cmd.Context())
+			sets, err := behavior.ParseManifestSets(files, manifestSets)
 			if err != nil {
-				return fmt.Errorf("%w: read rendered manifests: %w", ErrTestInvalid, err)
+				return fmt.Errorf("%w: %w", ErrTestInvalid, err)
 			}
-			if len(snapshot.Resources) == 0 {
-				return fmt.Errorf("%w: rendered manifest input contains no resources", ErrTestInvalid)
-			}
-
-			endpointReader := resolve.NewSnapshotEndpointReader(snapshot)
-			trace := func(ctx context.Context, hostname string) (analysisResult model.Analysis, traceErr error) {
-				analysisResult, traceErr = analyzeSnapshot(ctx, hostname, snapshot, endpointReader)
-				if errors.Is(traceErr, ErrHostnameNotFound) {
-					return analysisResult, behavior.ErrRouteNotFound
+			environments := make([]behavior.Environment, 0, len(sets))
+			for _, set := range sets {
+				snapshot, err := (&source.FilesSource{
+					Files: set.Files,
+					Stdin: cmd.InOrStdin(),
+				}).Snapshot(cmd.Context())
+				if err != nil {
+					return fmt.Errorf("%w: read rendered manifests for %q: %w", ErrTestInvalid, set.Name, err)
 				}
-				return analysisResult, traceErr
+				if len(snapshot.Resources) == 0 {
+					return fmt.Errorf("%w: rendered manifest input for %q contains no resources", ErrTestInvalid, set.Name)
+				}
+				endpointReader := resolve.NewSnapshotEndpointReader(snapshot)
+				trace := func(ctx context.Context, hostname string) (model.Analysis, error) {
+					analysis, traceErr := analyzeSnapshot(ctx, hostname, snapshot, endpointReader)
+					if errors.Is(traceErr, ErrHostnameNotFound) {
+						return analysis, behavior.ErrRouteNotFound
+					}
+					return analysis, traceErr
+				}
+				environments = append(environments, behavior.Environment{Name: set.Name, Trace: trace})
 			}
 			result, err := behavior.Run(cmd.Context(), behavior.RunOptions{
-				Paths:       args,
-				Trace:       trace,
-				Output:      cmd.OutOrStdout(),
-				Diagnostics: cmd.ErrOrStderr(),
-				JUnitPath:   junit,
+				Paths:        args,
+				Environments: environments,
+				Output:       cmd.OutOrStdout(),
+				Diagnostics:  cmd.ErrOrStderr(),
+				JUnitPath:    junit,
 			})
 			if err != nil {
 				return fmt.Errorf("%w: %w", ErrTestInvalid, err)
@@ -79,6 +85,7 @@ func newTestCommand(stdout, stderr io.Writer) *cobra.Command {
 	command.SetOut(stdout)
 	command.SetErr(stderr)
 	command.Flags().StringArrayVarP(&files, "file", "f", nil, "Read rendered YAML manifests without connecting to a cluster")
+	command.Flags().StringArrayVar(&manifestSets, "manifests", nil, "Read rendered YAML as a named environment (name=file)")
 	command.Flags().StringVar(&junit, "junit", "", "Write a JUnit XML report to this file")
 	return command
 }

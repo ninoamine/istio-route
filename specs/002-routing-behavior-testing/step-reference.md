@@ -2,7 +2,8 @@
 
 This page defines the fixed built-in vocabulary for behavior feature files. Replace
 quoted values and one-based indexes with scenario-outline placeholders as needed.
-Only these forms are supported; user-defined step implementations are not loaded.
+These tables cover every registered step pattern; user-defined step implementations
+are not loaded.
 `And` and `But` may continue the appropriate preceding `Given`, `When`, or `Then`.
 
 ## Select manifests and trace a hostname
@@ -19,7 +20,8 @@ Only these forms are supported; user-defined step implementations are not loaded
 The manifest-selection step is optional for an unnamed single-set run. With named
 sets it can document the set expected by a scenario, but environment tags select the
 execution. An untagged scenario is executed for every set, so an explicit set step
-in such a scenario is invalid when multiple sets exist.
+in such a scenario is invalid when multiple sets exist. Tags matching other names
+remain ordinary labels and do not limit which environments execute the scenario.
 
 ## Assert the full structured trace
 

@@ -40,6 +40,9 @@ Tag an environment-specific scenario with `@prod` or `@staging`. It runs only
 against that named manifest set. Untagged scenarios run once against each set.
 `Given the manifests for "prod"` confirms the set selected for that scenario; it
 does not switch environments.
+Other tags, such as `@smoke`, remain ordinary scenario labels and do not select an
+environment. The combined JUnit report includes a separate testcase for each
+expanded example and each environment execution.
 
 ## Minimal feature example
 

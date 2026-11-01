@@ -1,0 +1,5 @@
+Feature: Shop routing (routing.feature)
+  PASS: Routes API to v1
+  FAIL: Routes to expected service (routing.feature:10)
+    routing.feature:12: Then destination 1 of rule 1 of route 1 should send traffic to service "api-v1" on port 8080: expected "api-v1", got "api-v2"
+2 scenarios: 1 passed, 1 failed

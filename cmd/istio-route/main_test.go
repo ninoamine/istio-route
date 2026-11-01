@@ -71,10 +71,10 @@ func TestRunExitCodes(t *testing.T) {
 			wantStderr: cli.ErrTestInvalid.Error(),
 		},
 		{
-			name:       "named manifests are not accepted in single-set phase",
-			args:       []string{"test", "-f", "../../testdata/manifests/behavior.yaml", "--manifests", "prod=rendered.yaml", "../../testdata/features/routing-passes.feature"},
-			wantCode:   2,
-			wantStderr: cli.ErrUsage.Error(),
+			name:       "named manifests check multiple environments",
+			args:       []string{"test", "--manifests", "prod=../../testdata/manifests/behavior-prod.yaml", "--manifests", "staging=../../testdata/manifests/behavior-staging.yaml", "../../testdata/features/environments.feature"},
+			wantCode:   0,
+			wantStdout: "6 scenarios: 6 passed, 0 failed",
 		},
 	}
 

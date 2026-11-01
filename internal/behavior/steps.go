@@ -11,15 +11,39 @@ import (
 	"github.com/ninoamine/istio-route/internal/model"
 )
 
+var supportedStepExamples = []string{
+	`Given the manifests for "prod"`,
+	`When I trace the hostname "shop.example.com"`,
+	`Then the hostname should be found`,
+	`Then the hostname should not be found`,
+	`Then a route should match`,
+	`Then no route should match`,
+	`Then it should be exposed through gateway "public-gateway"`,
+	`Then route 1 should be "VirtualService" "shop/shop-vs"`,
+	`Then rule 1 of route 1 should match path prefix "/api"`,
+	`Then rule 1 of route 1 should send traffic to service "api" on port 8080`,
+	`Then the traffic split for rule 1 of route 1 should be 90% "v1" and 10% "v2"`,
+	`Then there should be no findings with severity "error"`,
+	`Then there should be a finding with severity "warning" and message containing "not programmed"`,
+	`Then trace field "hostname" should equal "shop.example.com"`,
+	`Then entry point 1 field "protocol" should equal "HTTPS"`,
+	`Then route 1 field "resource.kind" should equal "VirtualService"`,
+	`Then rule 1 of route 1 field "matches[0].path" should equal "/api"`,
+	`Then destination 1 of rule 1 of route 1 field "subset" should equal "v1"`,
+	`Then endpoint 1 of destination 1 of rule 1 of route 1 field "ready" should equal "true"`,
+	`Then finding 1 field "severity" should equal "warning"`,
+}
+
 var ErrRouteNotFound = errors.New("hostname has no matching route")
 
 type TraceFunc func(context.Context, string) (model.Analysis, error)
 
 type scenarioState struct {
-	trace        TraceFunc
-	manifestName string
-	analysis     model.Analysis
-	traced       bool
+	trace            TraceFunc
+	manifestName     string
+	environmentNames []string
+	analysis         model.Analysis
+	traced           bool
 }
 
 func (s *scenarioState) reset() {
@@ -46,12 +70,21 @@ func (s *scenarioState) traceHostname(ctx context.Context, hostname string) erro
 }
 
 func (s *scenarioState) assertManifests(name string) error {
-	if name != s.manifestName {
-		actual := "unnamed manifest set"
-		if s.manifestName != "" {
-			actual = fmt.Sprintf("manifest set %q", s.manifestName)
+	known := false
+	for _, environmentName := range s.environmentNames {
+		if name == environmentName {
+			known = true
+			break
 		}
-		return assertionFailure(fmt.Sprintf("manifests for %q", name), actual)
+	}
+	if !known {
+		return fmt.Errorf("%w: %q", ErrUnknownEnvironment, name)
+	}
+	if name != s.manifestName {
+		return fmt.Errorf(
+			"%w: requested manifests for %q, current set is %q",
+			ErrConflictingEnvironment, name, s.manifestName,
+		)
 	}
 	return nil
 }
