@@ -39,13 +39,18 @@ func TestClientReadMethods(t *testing.T) {
 	})
 	gatewayClient := gatewayfake.NewClientset(
 		&gatewayv1.GatewayClass{ObjectMeta: metav1.ObjectMeta{Name: "edge"}},
+		&gatewayv1.Gateway{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "edge"}},
 		&gatewayv1.HTTPRoute{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "api"}},
+		&gatewayv1.GRPCRoute{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "grpc"}},
 		&gatewayv1beta1.ReferenceGrant{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "grant"}},
 	)
 	gatewayClient.PrependReactor("list", "gateways", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, &gatewayv1.GatewayList{Items: []gatewayv1.Gateway{{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "edge"},
 		}}}, nil
+	})
+	gatewayClient.PrependReactor("get", "gateways", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, &gatewayv1.Gateway{ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "edge"}}, nil
 	})
 	client := NewClientForInterfaces(
 		core, core.Discovery(), istioClient.NetworkingV1(),
@@ -61,11 +66,15 @@ func TestClientReadMethods(t *testing.T) {
 		{name: "DestinationRules", call: func() error { _, err := client.ListDestinationRules(ctx, "shop", metav1.ListOptions{}); return err }},
 		{name: "ServiceEntries", call: func() error { _, err := client.ListServiceEntries(ctx, "shop", metav1.ListOptions{}); return err }},
 		{name: "GatewayClasses", call: func() error { _, err := client.ListGatewayClasses(ctx, metav1.ListOptions{}); return err }},
+		{name: "GetGateway", call: func() error { _, err := client.GetGateway(ctx, "shop", "edge", metav1.GetOptions{}); return err }},
+		{name: "GetGatewayClass", call: func() error { _, err := client.GetGatewayClass(ctx, "edge", metav1.GetOptions{}); return err }},
 		{name: "Gateway API Gateways", call: func() error { _, err := client.ListGateways(ctx, "shop", metav1.ListOptions{}); return err }},
 		{name: "HTTPRoutes", call: func() error { _, err := client.ListHTTPRoutes(ctx, "shop", metav1.ListOptions{}); return err }},
+		{name: "GRPCRoutes", call: func() error { _, err := client.ListGRPCRoutes(ctx, "shop", metav1.ListOptions{}); return err }},
 		{name: "ReferenceGrants", call: func() error { _, err := client.ListReferenceGrants(ctx, "shop", metav1.ListOptions{}); return err }},
 		{name: "GetService", call: func() error { _, err := client.GetService(ctx, "shop", "api", metav1.GetOptions{}); return err }},
 		{name: "ListServices", call: func() error { _, err := client.ListServices(ctx, "shop", metav1.ListOptions{}); return err }},
+		{name: "ListNamespaces", call: func() error { _, err := client.ListNamespaces(ctx, metav1.ListOptions{}); return err }},
 		{name: "EndpointSlices", call: func() error { _, err := client.ListEndpointSlices(ctx, "shop", metav1.ListOptions{}); return err }},
 		{name: "GetPod", call: func() error { _, err := client.GetPod(ctx, "shop", "api-pod", metav1.GetOptions{}); return err }},
 		{name: "ListPods", call: func() error { _, err := client.ListPods(ctx, "shop", metav1.ListOptions{}); return err }},
@@ -108,11 +117,15 @@ func TestClientReadMethodsWrapErrors(t *testing.T) {
 		{name: "DestinationRules", call: func() error { _, err := client.ListDestinationRules(ctx, "shop", metav1.ListOptions{}); return err }, want: "list Istio DestinationRules"},
 		{name: "ServiceEntries", call: func() error { _, err := client.ListServiceEntries(ctx, "shop", metav1.ListOptions{}); return err }, want: "list Istio ServiceEntries"},
 		{name: "GatewayClasses", call: func() error { _, err := client.ListGatewayClasses(ctx, metav1.ListOptions{}); return err }, want: "list GatewayClasses"},
+		{name: "GetGateway", call: func() error { _, err := client.GetGateway(ctx, "shop", "edge", metav1.GetOptions{}); return err }, want: "get Gateway shop/edge"},
+		{name: "GetGatewayClass", call: func() error { _, err := client.GetGatewayClass(ctx, "edge", metav1.GetOptions{}); return err }, want: "get GatewayClass edge"},
 		{name: "Gateway API Gateways", call: func() error { _, err := client.ListGateways(ctx, "shop", metav1.ListOptions{}); return err }, want: "list Gateway API Gateways"},
 		{name: "HTTPRoutes", call: func() error { _, err := client.ListHTTPRoutes(ctx, "shop", metav1.ListOptions{}); return err }, want: "list HTTPRoutes"},
+		{name: "GRPCRoutes", call: func() error { _, err := client.ListGRPCRoutes(ctx, "shop", metav1.ListOptions{}); return err }, want: "list GRPCRoutes"},
 		{name: "ReferenceGrants", call: func() error { _, err := client.ListReferenceGrants(ctx, "shop", metav1.ListOptions{}); return err }, want: "list ReferenceGrants"},
 		{name: "GetService", call: func() error { _, err := client.GetService(ctx, "shop", "api", metav1.GetOptions{}); return err }, want: "get Service shop/api"},
 		{name: "ListServices", call: func() error { _, err := client.ListServices(ctx, "shop", metav1.ListOptions{}); return err }, want: "list Services"},
+		{name: "ListNamespaces", call: func() error { _, err := client.ListNamespaces(ctx, metav1.ListOptions{}); return err }, want: "list Namespaces"},
 		{name: "EndpointSlices", call: func() error { _, err := client.ListEndpointSlices(ctx, "shop", metav1.ListOptions{}); return err }, want: "list EndpointSlices in shop"},
 		{name: "GetPod", call: func() error { _, err := client.GetPod(ctx, "shop", "api-pod", metav1.GetOptions{}); return err }, want: "get Pod shop/api-pod"},
 		{name: "ListPods", call: func() error { _, err := client.ListPods(ctx, "shop", metav1.ListOptions{}); return err }, want: "list Pods"},

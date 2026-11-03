@@ -1,9 +1,11 @@
 package behavior
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/ninoamine/istio-route/internal/audit"
 	"github.com/ninoamine/istio-route/internal/model"
 )
 
@@ -215,5 +217,94 @@ func TestSuggestStep(t *testing.T) {
 	got := suggestStep(`When I trace the host "shop.example.com"`)
 	if got != `When I trace the hostname "shop.example.com"` {
 		t.Fatalf("suggestStep() = %q, want closest supported form", got)
+	}
+}
+
+func TestScenarioAuditAssertions(t *testing.T) {
+	gateway := model.ResourceIdentity{Kind: "Gateway", Namespace: "infra", Name: "edge"}
+	route := model.ResourceIdentity{Kind: "HTTPRoute", Namespace: "shop", Name: "old-route"}
+	service := model.ResourceIdentity{Kind: "Service", Namespace: "shop", Name: "api"}
+	result := audit.Result{
+		Gateway: audit.Gateway{Identity: gateway},
+		Routes: []audit.Route{{
+			Identity: route,
+			Rules:    []audit.Rule{{Index: 1, Precedence: audit.PrecedenceShadowed}},
+		}, {
+			Identity: model.ResourceIdentity{Kind: "HTTPRoute", Namespace: "shop", Name: "general"},
+			Rules:    []audit.Rule{{Index: 1, Precedence: audit.PrecedencePartialOverlap}},
+		}, {
+			Identity: model.ResourceIdentity{Kind: "HTTPRoute", Namespace: "shop", Name: "specific"},
+			Rules:    []audit.Rule{{Index: 1, Precedence: audit.PrecedenceWinner}},
+		}},
+		Findings: []model.Finding{{
+			Code: "backend-service-not-found", Severity: model.FindingSeverityError,
+			Category: string(audit.CategoryOrphaned), Resources: []model.ResourceIdentity{route, service},
+		}},
+	}
+	state := &scenarioState{
+		auditFunc: func(_ context.Context, namespace, name string) (audit.Result, audit.Outcome, error) {
+			if namespace != "infra" || name != "edge" {
+				t.Fatalf("audit callback identity = %s/%s, want infra/edge", namespace, name)
+			}
+			return result, audit.OutcomeTargetFound, nil
+		},
+		analysis: model.Analysis{Hostname: "untouched.example.com"},
+		traced:   true,
+	}
+	if err := state.auditGateway(context.Background(), "infra/edge"); err != nil {
+		t.Fatalf("auditGateway() error = %v", err)
+	}
+	if state.analysis.Hostname != "untouched.example.com" || !state.traced {
+		t.Fatal("gateway audit changed hostname trace state")
+	}
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "gateway found", run: func() error { return state.assertGatewayFound(true) }},
+		{name: "finding fields", run: func() error {
+			return state.assertAuditFinding(
+				"backend-service-not-found", model.FindingSeverityError, audit.CategoryOrphaned,
+			)
+		}},
+		{name: "finding resource", run: func() error {
+			return state.assertAuditFindingResource("backend-service-not-found", "Service", "shop/api")
+		}},
+		{name: "finding absence", run: func() error { return state.assertNoAuditFinding("duplicate-route-rule") }},
+		{name: "shadowed rule", run: func() error {
+			return state.assertRoutePrecedence("shop/old-route", 1, audit.PrecedenceShadowed)
+		}},
+		{name: "partial-overlap rule", run: func() error {
+			return state.assertPartialOverlap("shop/general", 1, "shop/specific", 1)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); err != nil {
+				t.Fatalf("audit assertion failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestScenarioAuditNotFoundAndFailure(t *testing.T) {
+	state := &scenarioState{
+		auditFunc: func(context.Context, string, string) (audit.Result, audit.Outcome, error) {
+			return audit.Result{}, audit.OutcomeTargetNotFound, nil
+		},
+	}
+	if err := state.auditGateway(context.Background(), "infra/absent"); err != nil {
+		t.Fatalf("auditGateway() error = %v", err)
+	}
+	if err := state.assertGatewayFound(false); err != nil {
+		t.Fatalf("assertGatewayFound(false) error = %v", err)
+	}
+	if err := state.assertNoAuditFinding("waypoint-not-found"); err != nil {
+		t.Fatalf("assertNoAuditFinding() error = %v", err)
+	}
+
+	if err := state.assertGatewayFound(true); err == nil || !strings.Contains(err.Error(), "gateway found") {
+		t.Fatalf("assertGatewayFound(true) error = %v, want assertion failure", err)
 	}
 }

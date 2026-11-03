@@ -30,6 +30,10 @@ func runWithService(args []string, stdout, stderr io.Writer, service cli.Analysi
 			return reportError(stderr, err, 2)
 		case errors.Is(err, cli.ErrHostnameNotFound):
 			return reportError(stderr, err, 3)
+		case errors.Is(err, cli.ErrGatewayNotFound):
+			return reportError(stderr, err, 3)
+		case errors.Is(err, cli.ErrAuditFindings):
+			return reportError(stderr, err, 4)
 		default:
 			return reportError(stderr, err, 1)
 		}

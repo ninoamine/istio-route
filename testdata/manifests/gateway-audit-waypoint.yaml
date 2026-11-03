@@ -1,0 +1,42 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: istio-waypoint
+spec:
+  controllerName: istio.io/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: app
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+status:
+  conditions:
+    - type: Programmed
+      status: "True"
+      reason: Programmed
+      message: Waypoint is programmed
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    istio.io/use-waypoint: waypoint
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: app
+  labels:
+    istio.io/use-waypoint: app/waypoint
+spec:
+  ports:
+    - port: 8080

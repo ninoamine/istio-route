@@ -108,6 +108,7 @@ func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Co
 	cmd.Flags().BoolVar(&flags.NoColor, "no-color", false, "Disable colored text output")
 	cmd.Version = "dev"
 	cmd.InitDefaultVersionFlag()
+	cmd.AddCommand(newAuditCommand(NewDefaultGatewayAuditService(), stdout, stderr))
 	cmd.AddCommand(newTestCommand(stdout, stderr))
 
 	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {

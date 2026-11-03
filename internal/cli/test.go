@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ninoamine/istio-route/internal/audit"
 	"github.com/ninoamine/istio-route/internal/behavior"
 	"github.com/ninoamine/istio-route/internal/model"
 	"github.com/ninoamine/istio-route/internal/resolve"
@@ -61,7 +62,16 @@ func newTestCommand(stdout, stderr io.Writer) *cobra.Command {
 					}
 					return analysis, traceErr
 				}
-				environments = append(environments, behavior.Environment{Name: set.Name, Trace: trace})
+				auditGateway := func(ctx context.Context, namespace, gatewayName string) (audit.Result, audit.Outcome, error) {
+					return audit.Analyze(ctx, audit.Request{
+						GatewayName: gatewayName,
+						Namespace:   namespace,
+						Source:      snapshot.Metadata,
+					}, snapshot)
+				}
+				environments = append(environments, behavior.Environment{
+					Name: set.Name, Trace: trace, Audit: auditGateway,
+				})
 			}
 			result, err := behavior.Run(cmd.Context(), behavior.RunOptions{
 				Paths:        args,

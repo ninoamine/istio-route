@@ -154,6 +154,62 @@ func TestTestCommandRunsNamedEnvironments(t *testing.T) {
 	}
 }
 
+func TestTestCommandRunsGatewayAuditScenariosOffline(t *testing.T) {
+	reportPath := filepath.Join(t.TempDir(), "gateway-audit.xml")
+	manifestSets := []struct {
+		name string
+		file string
+	}{
+		{name: "healthy", file: "gateway-audit-healthy.yaml"},
+		{name: "rejected", file: "gateway-audit-rejected.yaml"},
+		{name: "missing-backend", file: "gateway-audit-missing-backend.yaml"},
+		{name: "unused-grant", file: "gateway-audit-unused-grant.yaml"},
+		{name: "duplicate", file: "gateway-audit-duplicate.yaml"},
+		{name: "overlap", file: "gateway-audit-overlap.yaml"},
+		{name: "no-ready-endpoints", file: "gateway-audit-no-ready-endpoints.yaml"},
+		{name: "waypoint-selected", file: "gateway-audit-waypoint.yaml"},
+		{name: "waypoint-missing", file: "gateway-audit-missing-waypoint-target.yaml"},
+		{name: "unknown-gateway", file: "gateway-audit-healthy.yaml"},
+	}
+	args := []string{"test"}
+	for _, set := range manifestSets {
+		args = append(args, "--manifests", set.name+"=../../testdata/manifests/"+set.file)
+	}
+	args = append(args, "--junit", reportPath, "../../testdata/features/gateway-audit-overlap.feature")
+
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	command := NewRootCommand(nil, stdout, stderr)
+	command.SetArgs(args)
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout.String(), "10 scenarios: 10 passed, 0 failed") {
+		t.Errorf("stdout does not report ten passing audit scenarios:\n%s", stdout.String())
+	}
+	if strings.Contains(stderr.String(), "unsupported or ambiguous step") {
+		t.Errorf("audit steps were not registered:\n%s", stderr.String())
+	}
+
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("read audit JUnit report: %v", err)
+	}
+	var report struct {
+		Tests    int `xml:"tests,attr"`
+		Failures int `xml:"failures,attr"`
+		Cases    []struct {
+			Name string `xml:"name,attr"`
+		} `xml:"testcase"`
+	}
+	if err := xml.Unmarshal(data, &report); err != nil {
+		t.Fatalf("parse audit JUnit report: %v\n%s", err, data)
+	}
+	if report.Tests != 10 || report.Failures != 0 || len(report.Cases) != 10 {
+		t.Errorf("audit JUnit report = tests %d, failures %d, cases %d; want 10, 0, 10", report.Tests, report.Failures, len(report.Cases))
+	}
+}
+
 func TestTestCommandRejectsUnknownManifestAssertion(t *testing.T) {
 	feature := filepath.Join(t.TempDir(), "unknown-environment.feature")
 	contents := `Feature: Unknown environment

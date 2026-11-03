@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ninoamine/istio-route/internal/kube"
@@ -90,6 +91,33 @@ func TestNewClusterSourceWithClientFactorySelectsContextAndNamespace(t *testing.
 				}
 			}
 		})
+	}
+}
+
+func TestNewClusterSourceUsesKubeconfigNamespaceWhenUnspecified(t *testing.T) {
+	configPath := writeKubeconfig(t)
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read kubeconfig: %v", err)
+	}
+	content = []byte(strings.Replace(string(content),
+		"      user: default\n", "      user: default\n      namespace: from-context\n", 1))
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatalf("update kubeconfig: %v", err)
+	}
+	coreClient := kubefake.NewClientset()
+	reader := kube.NewClientForInterfaces(coreClient, coreClient.Discovery(), nil, nil, nil)
+	cluster, err := NewClusterSourceWithClientFactory(
+		context.Background(), configPath, "", "",
+		func(*rest.Config) (kube.Reader, discovery.DiscoveryInterface, error) {
+			return reader, coreClient.Discovery(), nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewClusterSourceWithClientFactory() error = %v", err)
+	}
+	if cluster.Namespace != "from-context" {
+		t.Errorf("namespace = %q, want kubeconfig namespace from-context", cluster.Namespace)
 	}
 }
 

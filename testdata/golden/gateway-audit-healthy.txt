@@ -1,0 +1,7 @@
+Gateway infra/edge (class: istio, controller: istio.io/gateway-controller)
+  listener https :443 HTTPS hostnames=shop.example.com
+  HTTPRoute shop/shop
+    acceptance: accepted (Accepted)
+    rule 1: winner
+      backend shop/api (present)
+endpoint check: skipped (no EndpointSlices were supplied in the offline input)

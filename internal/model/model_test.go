@@ -310,6 +310,83 @@ func TestAnalysisSerialization(t *testing.T) {
 	}
 }
 
+func TestFindingAuditMetadataSerialization(t *testing.T) {
+	tests := []struct {
+		name        string
+		finding     Finding
+		wantOmitted []string
+		wantPresent []string
+	}{
+		{
+			name: "legacy finding omits audit metadata",
+			finding: Finding{
+				Code:     "mixed-api-hostname",
+				Severity: FindingSeverityWarning,
+				Message:  "hostname is served by both APIs",
+			},
+			wantOmitted: []string{"category", "suggestedFix"},
+		},
+		{
+			name: "audit finding serializes audit metadata",
+			finding: Finding{
+				Code:         "rejected-route",
+				Severity:     FindingSeverityError,
+				Message:      "route is not accepted",
+				Category:     "orphaned",
+				SuggestedFix: "Check the Gateway listener constraints.",
+			},
+			wantPresent: []string{"category", "suggestedFix"},
+		},
+	}
+
+	formats := []struct {
+		name      string
+		marshal   func(any) ([]byte, error)
+		unmarshal func([]byte, any) error
+	}{
+		{name: "json", marshal: json.Marshal, unmarshal: json.Unmarshal},
+		{
+			name:    "yaml",
+			marshal: yaml.Marshal,
+			unmarshal: func(data []byte, value any) error {
+				return yaml.Unmarshal(data, value)
+			},
+		},
+	}
+
+	for _, format := range formats {
+		t.Run(format.name, func(t *testing.T) {
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					encoded, err := format.marshal(tt.finding)
+					if err != nil {
+						t.Fatalf("marshal() error = %v", err)
+					}
+
+					for _, field := range tt.wantOmitted {
+						if strings.Contains(string(encoded), field) {
+							t.Errorf("serialized finding unexpectedly contains %q: %s", field, encoded)
+						}
+					}
+					for _, field := range tt.wantPresent {
+						if !strings.Contains(string(encoded), field) {
+							t.Errorf("serialized finding is missing %q: %s", field, encoded)
+						}
+					}
+
+					var got Finding
+					if err := format.unmarshal(encoded, &got); err != nil {
+						t.Fatalf("unmarshal() error = %v", err)
+					}
+					if !reflect.DeepEqual(got, tt.finding) {
+						t.Fatalf("round-trip mismatch:\n got: %#v\nwant: %#v", got, tt.finding)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestNestedValidation(t *testing.T) {
 	validIdentity := ResourceIdentity{Version: "v1", Kind: "Service", Namespace: "shop", Name: "api"}
 	validService := Service{
