@@ -455,10 +455,12 @@ const (
 )
 
 type Finding struct {
-	Code      string             `json:"code" yaml:"code"`
-	Severity  FindingSeverity    `json:"severity" yaml:"severity"`
-	Message   string             `json:"message" yaml:"message"`
-	Resources []ResourceIdentity `json:"resources,omitempty" yaml:"resources,omitempty"`
+	Code         string             `json:"code" yaml:"code"`
+	Severity     FindingSeverity    `json:"severity" yaml:"severity"`
+	Message      string             `json:"message" yaml:"message"`
+	Resources    []ResourceIdentity `json:"resources,omitempty" yaml:"resources,omitempty"`
+	Category     string             `json:"category,omitempty" yaml:"category,omitempty"`
+	SuggestedFix string             `json:"suggestedFix,omitempty" yaml:"suggestedFix,omitempty"`
 }
 
 func (f Finding) Validate() error {

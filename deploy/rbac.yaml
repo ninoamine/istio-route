@@ -12,6 +12,9 @@ rules:
   - apiGroups: [""]
     resources: ["services", "pods"]
     verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["list"]
@@ -19,7 +22,10 @@ rules:
     resources: ["gateways", "virtualservices", "destinationrules", "serviceentries"]
     verbs: ["list"]
   - apiGroups: ["gateway.networking.k8s.io"]
-    resources: ["gatewayclasses", "gateways", "httproutes", "referencegrants"]
+    resources: ["gatewayclasses", "gateways"]
+    verbs: ["get", "list"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes", "grpcroutes", "referencegrants"]
     verbs: ["list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

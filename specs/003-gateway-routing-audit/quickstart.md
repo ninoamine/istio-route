@@ -15,9 +15,9 @@ binary from the repository root before running the examples.
 ```sh
 go build -o istio-route ./cmd/istio-route
 ./istio-route analyze -f testdata/manifests/gateway-audit-healthy.yaml \
-  -n infra edge-gateway
+  -n infra edge
 ./istio-route analyze -f testdata/manifests/gateway-audit-overlap.yaml \
-  -n infra --output json edge-gateway
+  -n infra --output json edge
 ./istio-route analyze -f testdata/manifests/gateway-audit-waypoint.yaml \
   -n app waypoint
 ```
@@ -30,13 +30,13 @@ EndpointSlices, the report marks endpoint-health evaluation as skipped.
 
 ```sh
 ./istio-route analyze -f testdata/manifests/gateway-audit-overlap.yaml \
-  -n infra --output text edge-gateway
+  -n infra --output text edge
 ./istio-route analyze -f testdata/manifests/gateway-audit-overlap.yaml \
-  -n infra --output json edge-gateway
+  -n infra --output json edge
 ./istio-route analyze -f testdata/manifests/gateway-audit-overlap.yaml \
-  -n infra --output yaml edge-gateway
+  -n infra --output yaml edge
 ./istio-route analyze -f testdata/manifests/gateway-audit-overlap.yaml \
-  -n infra --output mermaid edge-gateway
+  -n infra --output mermaid edge
 ```
 
 All formats must carry equivalent gateway, route, backend, precedence, and finding
@@ -47,7 +47,17 @@ redirected stdout disable text styling.
 ## Scenario Assertions
 
 ```sh
-./istio-route test -f testdata/manifests/gateway-audit-overlap.yaml \
+./istio-route test \
+  --manifests healthy=testdata/manifests/gateway-audit-healthy.yaml \
+  --manifests rejected=testdata/manifests/gateway-audit-rejected.yaml \
+  --manifests missing-backend=testdata/manifests/gateway-audit-missing-backend.yaml \
+  --manifests unused-grant=testdata/manifests/gateway-audit-unused-grant.yaml \
+  --manifests duplicate=testdata/manifests/gateway-audit-duplicate.yaml \
+  --manifests overlap=testdata/manifests/gateway-audit-overlap.yaml \
+  --manifests no-ready-endpoints=testdata/manifests/gateway-audit-no-ready-endpoints.yaml \
+  --manifests waypoint-selected=testdata/manifests/gateway-audit-waypoint.yaml \
+  --manifests waypoint-missing=testdata/manifests/gateway-audit-missing-waypoint-target.yaml \
+  --manifests unknown-gateway=testdata/manifests/gateway-audit-healthy.yaml \
   testdata/features/gateway-audit-overlap.feature
 ```
 
@@ -79,6 +89,7 @@ blocks the next phase.
 go test -race ./...
 go vet ./...
 golangci-lint run
+gofumpt -l .
 ```
 
 Build and run all existing Gherkin inputs. The first three invocations must return
@@ -92,14 +103,11 @@ go build -o istio-route ./cmd/istio-route
 ./istio-route test -f testdata/manifests/behavior.yaml testdata/features/routing-fails.feature
 ```
 
-Run the hostname command with each format and diff stdout against the existing
-goldens. Every diff must be empty; no existing expected file may be edited:
+Run the existing renderer golden tests for all four hostname formats. They compare
+the renderer output byte-for-byte; no existing expected file may be edited:
 
 ```sh
-diff -u testdata/golden/mixed-routing.txt <(./istio-route -f testdata/manifests/mixed.yaml --output text shop.example.com)
-diff -u testdata/golden/mixed-routing.json <(./istio-route -f testdata/manifests/mixed.yaml --output json shop.example.com)
-diff -u testdata/golden/mixed-routing.yaml <(./istio-route -f testdata/manifests/mixed.yaml --output yaml shop.example.com)
-diff -u testdata/golden/mixed-routing.mmd <(./istio-route -f testdata/manifests/mixed.yaml --output mermaid shop.example.com)
+go test ./internal/render -run 'TestRenderFormatsMixedRoutingGolden|TestTextMixedRoutingGolden'
 ```
 
 Finally verify `internal/` coverage remains at least 80%, audit goldens cover all

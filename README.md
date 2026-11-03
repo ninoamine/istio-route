@@ -116,6 +116,41 @@ small and safe to inspect. `missing-reference-grant.yaml` demonstrates a rejecte
 cross-namespace reference; `endpoints.yaml` includes a Service, EndpointSlice, and
 Pod for endpoint inspection.
 
+## Audit a Gateway
+
+The `analyze` subcommand audits one Gateway API Gateway or Istio ambient waypoint.
+It accepts the Gateway name and its namespace, and can read local manifests or a
+live cluster:
+
+```sh
+./istio-route analyze -f testdata/manifests/gateway-audit-healthy.yaml \
+  -n infra edge
+./istio-route analyze -f testdata/manifests/gateway-audit-overlap.yaml \
+  -n infra --output json edge
+./istio-route analyze --context staging --namespace infra \
+  --output yaml edge
+```
+
+Use `-f`/`--file` to analyze only the supplied manifests; `-f -` reads one YAML
+stream from stdin. Without manifest files, the current kubeconfig context is used.
+Use `--kubeconfig` and `--context` to select live-cluster credentials and context.
+`--namespace` overrides the kubeconfig namespace and is required for live analysis
+when the context has no default namespace. The command supports `text`, `json`,
+`yaml`, and `mermaid`; `--no-color`, `NO_COLOR`, and redirected stdout disable text
+styling.
+
+The live audit is read-only. It gets the selected Gateway and GatewayClass, lists
+HTTPRoutes and GRPCRoutes to filter matching parent references, and reads only
+referenced backend, grant, EndpointSlice, and waypoint-selection data. The reader
+RBAC in [`deploy/rbac.yaml`](./deploy/rbac.yaml) adds only `get`/`list` access for
+Gateway and GatewayClass objects and `list` access for GRPCRoutes, Namespaces, and
+EndpointSlices; it does not grant Secret access or write operations.
+
+The command exits `0` for a clean audit, `4` when findings are reported, `3` when
+the requested Gateway is absent, `2` for invalid usage, and `1` for runtime, source,
+or parsing errors. The literal root hostname `analyze` is reserved for this
+subcommand; other hostname arguments retain the existing trace behavior.
+
 ## Test rendered routing behavior
 
 The `test` subcommand evaluates Gherkin feature files against rendered manifests
@@ -162,6 +197,8 @@ files.
 
 The fixed supported step vocabulary and its field assertions are documented in
 [`step-reference.md`](./specs/002-routing-behavior-testing/step-reference.md).
+Gateway audit scenarios use the same offline `test` command and add steps for
+Gateway existence, finding code/severity/category/resource, and route precedence.
 Failures identify the feature step and expected versus actual trace values. For
 example, the included failing feature reports:
 
@@ -250,6 +287,11 @@ manifest files supplied on the command line and makes no cluster requests.
 | `istio-route test` | `0` | All scenario assertions passed |
 | `istio-route test` | `1` | One or more scenario assertions failed |
 | `istio-route test` | `2` | Invalid feature, input, step, or report output |
+| `istio-route analyze` | `0` | Audit completed without findings |
+| `istio-route analyze` | `1` | Runtime, source, parsing, or rendering error |
+| `istio-route analyze` | `2` | Invalid command usage |
+| `istio-route analyze` | `3` | Gateway or waypoint not found |
+| `istio-route analyze` | `4` | Audit completed with findings |
 | Hostname trace | `0` | Analysis succeeded and a matching route was found |
 | Hostname trace | `1` | Runtime, source, parsing, or rendering error |
 | Hostname trace | `2` | Invalid command usage |

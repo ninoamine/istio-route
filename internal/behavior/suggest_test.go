@@ -19,6 +19,11 @@ func TestSuggestStepSuggestions(t *testing.T) {
 			want: `When I trace the hostname "shop.example.com"`,
 		},
 		{
+			name: "audit assertion suggestion",
+			step: `Then gateway should be found`,
+			want: `Then the gateway should be found`,
+		},
+		{
 			name: "close match",
 			step: `the hostname should be found`,
 			want: `Then the hostname should be found`,

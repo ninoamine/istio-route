@@ -76,6 +76,17 @@ func NewClusterSourceWithClientFactory(
 	if contextName == "" {
 		contextName = rawConfig.CurrentContext
 	}
+	if namespace == "" {
+		configuredNamespace, _, namespaceErr := clientConfig.Namespace()
+		if namespaceErr != nil {
+			return nil, fmt.Errorf("read Kubernetes namespace: %w", namespaceErr)
+		}
+		if selectedContext := rawConfig.Contexts[contextName]; selectedContext != nil && selectedContext.Namespace != "" {
+			namespace = selectedContext.Namespace
+		} else if configuredNamespace != "default" {
+			namespace = configuredNamespace
+		}
+	}
 	return &ClusterSource{
 		Reader: reader, Discovery: discoveryClient,
 		Context: contextName, Namespace: namespace,

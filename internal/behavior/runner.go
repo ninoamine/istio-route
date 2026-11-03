@@ -155,6 +155,7 @@ func runEnvironment(
 		ScenarioInitializer: func(scenarioContext *godog.ScenarioContext) {
 			state := &scenarioState{
 				trace:            environment.Trace,
+				auditFunc:        environment.Audit,
 				manifestName:     environment.Name,
 				environmentNames: environmentNames,
 			}

@@ -1,0 +1,91 @@
+endpointCheck:
+  reason: no EndpointSlices were supplied in the offline input
+  state: skipped
+gateway:
+  class:
+    controller: istio.io/gateway-controller
+    identity:
+      group: gateway.networking.k8s.io
+      kind: GatewayClass
+      name: istio
+      version: v1
+  identity:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: edge
+    namespace: infra
+    version: v1
+  programmed:
+    message: Gateway is programmed
+    reason: Programmed
+    status: "True"
+    type: Programmed
+listeners:
+- hostnames:
+  - shop.example.com
+  name: https
+  port: 443
+  protocol: HTTPS
+  routeConstraints:
+  - HTTPRoute
+routes:
+- acceptance:
+  - listenerName: https
+    message: Route is accepted
+    parent:
+      identity:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: edge
+        namespace: infra
+        version: v1
+      sectionName: https
+    reason: Accepted
+    state: accepted
+  hostnames:
+  - shop.example.com
+  identity:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: shop
+    namespace: shop
+    version: v1
+  parentRefs:
+  - identity:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      name: edge
+      namespace: infra
+      version: v1
+    sectionName: https
+  rules:
+  - backends:
+    - reference:
+        kind: Service
+        name: api
+        namespace: shop
+        port: 8080
+      service:
+        availability: present
+        endpointSlicesSupplied: false
+        identity:
+          kind: Service
+          name: api
+          namespace: shop
+          version: v1
+        portPresent: true
+        ports:
+        - 8080
+        readyAddressCount: 0
+    index: 1
+    listenerNames:
+    - https
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+    precedence: winner
+source:
+  files:
+  - ../../testdata/manifests/gateway-audit-healthy.yaml
+  mode: files

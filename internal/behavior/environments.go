@@ -1,9 +1,12 @@
 package behavior
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/ninoamine/istio-route/internal/audit"
 )
 
 var (
@@ -19,7 +22,10 @@ type ManifestSet struct {
 type Environment struct {
 	Name  string
 	Trace TraceFunc
+	Audit AuditFunc
 }
+
+type AuditFunc func(context.Context, string, string) (audit.Result, audit.Outcome, error)
 
 func ParseManifestSets(files, namedFiles []string) ([]ManifestSet, error) {
 	if len(files) > 0 && len(namedFiles) > 0 {

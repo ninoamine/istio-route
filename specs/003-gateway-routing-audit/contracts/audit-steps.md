@@ -24,6 +24,7 @@ invalid test inputs.
 
 Quoted audit-target, route, and Service identities use `namespace/name`. Finding
 steps can be combined to assert the involved route, rule, backend, and severity.
+Cluster-scoped resource identities such as Namespace use the resource name alone.
 Indexes in generic field assertions remain one-based for entities and zero-based
 inside serialized lists.
 
@@ -32,6 +33,11 @@ inside serialized lists.
 - The audit result retains rejected and acceptance-unknown routes that name the
   selected Gateway as a parent.
 - Missing Gateway is assertable and does not become an invalid step or source error.
+- When a requested missing target is referenced by an `istio.io/use-waypoint`
+  Namespace or Service label, the result also retains a `waypoint-not-found`
+  finding for that selector.
+- Gateway audit state is independent of hostname trace state; neither operation
+  satisfies the other's assertion prerequisite.
 - A finding absence assertion succeeds only when no finding with that code exists.
 - `should be shadowed` means every request represented by the lower-ranked rule's
   match set is covered by higher-precedence rules. Partial intersection is asserted

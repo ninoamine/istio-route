@@ -76,6 +76,21 @@ func TestRunExitCodes(t *testing.T) {
 			wantCode:   0,
 			wantStdout: "6 scenarios: 6 passed, 0 failed",
 		},
+		{
+			name:     "healthy offline Gateway audit",
+			args:     []string{"analyze", "-f", "../../testdata/manifests/gateway-audit-healthy.yaml", "-n", "infra", "edge"},
+			wantCode: 0, wantStdout: "Gateway infra/edge",
+		},
+		{
+			name:     "audit findings use findings exit code",
+			args:     []string{"analyze", "-f", "../../testdata/manifests/gateway-audit-rejected.yaml", "-n", "infra", "edge"},
+			wantCode: 4, wantStdout: "rejected-route", wantStderr: cli.ErrAuditFindings.Error(),
+		},
+		{
+			name:     "unknown offline Gateway uses not-found exit code",
+			args:     []string{"analyze", "-f", "../../testdata/manifests/gateway-audit-healthy.yaml", "-n", "infra", "absent"},
+			wantCode: 3, wantStderr: cli.ErrGatewayNotFound.Error(),
+		},
 	}
 
 	for _, tt := range tests {

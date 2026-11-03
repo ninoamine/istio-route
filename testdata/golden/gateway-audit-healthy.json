@@ -1,0 +1,135 @@
+{
+  "source": {
+    "mode": "files",
+    "files": [
+      "../../testdata/manifests/gateway-audit-healthy.yaml"
+    ]
+  },
+  "gateway": {
+    "identity": {
+      "group": "gateway.networking.k8s.io",
+      "version": "v1",
+      "kind": "Gateway",
+      "namespace": "infra",
+      "name": "edge"
+    },
+    "class": {
+      "identity": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "GatewayClass",
+        "name": "istio"
+      },
+      "controller": "istio.io/gateway-controller"
+    },
+    "programmed": {
+      "type": "Programmed",
+      "status": "True",
+      "reason": "Programmed",
+      "message": "Gateway is programmed"
+    }
+  },
+  "listeners": [
+    {
+      "name": "https",
+      "hostnames": [
+        "shop.example.com"
+      ],
+      "port": 443,
+      "protocol": "HTTPS",
+      "routeConstraints": [
+        "HTTPRoute"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "identity": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "HTTPRoute",
+        "namespace": "shop",
+        "name": "shop"
+      },
+      "hostnames": [
+        "shop.example.com"
+      ],
+      "parentRefs": [
+        {
+          "identity": {
+            "group": "gateway.networking.k8s.io",
+            "version": "v1",
+            "kind": "Gateway",
+            "namespace": "infra",
+            "name": "edge"
+          },
+          "sectionName": "https"
+        }
+      ],
+      "acceptance": [
+        {
+          "parent": {
+            "identity": {
+              "group": "gateway.networking.k8s.io",
+              "version": "v1",
+              "kind": "Gateway",
+              "namespace": "infra",
+              "name": "edge"
+            },
+            "sectionName": "https"
+          },
+          "listenerName": "https",
+          "state": "accepted",
+          "reason": "Accepted",
+          "message": "Route is accepted"
+        }
+      ],
+      "rules": [
+        {
+          "index": 1,
+          "listenerNames": [
+            "https"
+          ],
+          "matches": [
+            {
+              "path": {
+                "type": "PathPrefix",
+                "value": "/"
+              }
+            }
+          ],
+          "backends": [
+            {
+              "reference": {
+                "kind": "Service",
+                "namespace": "shop",
+                "name": "api",
+                "port": 8080
+              },
+              "service": {
+                "identity": {
+                  "version": "v1",
+                  "kind": "Service",
+                  "namespace": "shop",
+                  "name": "api"
+                },
+                "availability": "present",
+                "ports": [
+                  8080
+                ],
+                "portPresent": true,
+                "endpointSlicesSupplied": false,
+                "readyAddressCount": 0
+              }
+            }
+          ],
+          "precedence": "winner"
+        }
+      ]
+    }
+  ],
+  "endpointCheck": {
+    "state": "skipped",
+    "reason": "no EndpointSlices were supplied in the offline input"
+  }
+}

@@ -29,11 +29,15 @@ type Reader interface {
 
 	ListGatewayClasses(context.Context, metav1.ListOptions) (*gatewayv1.GatewayClassList, error)
 	ListGateways(context.Context, string, metav1.ListOptions) (*gatewayv1.GatewayList, error)
+	GetGateway(context.Context, string, string, metav1.GetOptions) (*gatewayv1.Gateway, error)
+	GetGatewayClass(context.Context, string, metav1.GetOptions) (*gatewayv1.GatewayClass, error)
 	ListHTTPRoutes(context.Context, string, metav1.ListOptions) (*gatewayv1.HTTPRouteList, error)
+	ListGRPCRoutes(context.Context, string, metav1.ListOptions) (*gatewayv1.GRPCRouteList, error)
 	ListReferenceGrants(context.Context, string, metav1.ListOptions) (*gatewayv1beta1.ReferenceGrantList, error)
 
 	GetService(context.Context, string, string, metav1.GetOptions) (*corev1.Service, error)
 	ListServices(context.Context, string, metav1.ListOptions) (*corev1.ServiceList, error)
+	ListNamespaces(context.Context, metav1.ListOptions) (*corev1.NamespaceList, error)
 	ListEndpointSlices(context.Context, string, metav1.ListOptions) (*discoveryv1.EndpointSliceList, error)
 	GetPod(context.Context, string, string, metav1.GetOptions) (*corev1.Pod, error)
 	ListPods(context.Context, string, metav1.ListOptions) (*corev1.PodList, error)
@@ -143,10 +147,34 @@ func (c *Client) ListGateways(ctx context.Context, namespace string, options met
 	return result, nil
 }
 
+func (c *Client) GetGateway(ctx context.Context, namespace, name string, options metav1.GetOptions) (*gatewayv1.Gateway, error) {
+	result, err := c.gateway.Gateways(namespace).Get(ctx, name, options)
+	if err != nil {
+		return nil, fmt.Errorf("get Gateway %s/%s: %w", namespace, name, err)
+	}
+	return result, nil
+}
+
+func (c *Client) GetGatewayClass(ctx context.Context, name string, options metav1.GetOptions) (*gatewayv1.GatewayClass, error) {
+	result, err := c.gateway.GatewayClasses().Get(ctx, name, options)
+	if err != nil {
+		return nil, fmt.Errorf("get GatewayClass %s: %w", name, err)
+	}
+	return result, nil
+}
+
 func (c *Client) ListHTTPRoutes(ctx context.Context, namespace string, options metav1.ListOptions) (*gatewayv1.HTTPRouteList, error) {
 	result, err := c.gateway.HTTPRoutes(namespace).List(ctx, options)
 	if err != nil {
 		return nil, fmt.Errorf("list HTTPRoutes: %w", err)
+	}
+	return result, nil
+}
+
+func (c *Client) ListGRPCRoutes(ctx context.Context, namespace string, options metav1.ListOptions) (*gatewayv1.GRPCRouteList, error) {
+	result, err := c.gateway.GRPCRoutes(namespace).List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("list GRPCRoutes: %w", err)
 	}
 	return result, nil
 }
@@ -171,6 +199,14 @@ func (c *Client) ListServices(ctx context.Context, namespace string, options met
 	result, err := c.core.CoreV1().Services(namespace).List(ctx, options)
 	if err != nil {
 		return nil, fmt.Errorf("list Services: %w", err)
+	}
+	return result, nil
+}
+
+func (c *Client) ListNamespaces(ctx context.Context, options metav1.ListOptions) (*corev1.NamespaceList, error) {
+	result, err := c.core.CoreV1().Namespaces().List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("list Namespaces: %w", err)
 	}
 	return result, nil
 }

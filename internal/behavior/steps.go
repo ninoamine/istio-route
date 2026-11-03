@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/cucumber/godog"
+	"github.com/ninoamine/istio-route/internal/audit"
 	"github.com/ninoamine/istio-route/internal/model"
 )
 
@@ -25,6 +26,15 @@ var supportedStepExamples = []string{
 	`Then the traffic split for rule 1 of route 1 should be 90% "v1" and 10% "v2"`,
 	`Then there should be no findings with severity "error"`,
 	`Then there should be a finding with severity "warning" and message containing "not programmed"`,
+	`When I audit gateway "infra/edge"`,
+	`Then the gateway should be found`,
+	`Then the gateway should not be found`,
+	`Then there should be a finding with code "rejected-route" severity "error" category "orphaned"`,
+	`Then finding "rejected-route" should involve "HTTPRoute" "shop/rejected"`,
+	`Then there should be no finding with code "rejected-route"`,
+	`Then rule 1 of route "shop/fast" should win`,
+	`Then rule 1 of route "shop/old" should be shadowed`,
+	`Then rule 1 of route "shop/general" should partially overlap rule 1 of route "shop/specific"`,
 	`Then trace field "hostname" should equal "shop.example.com"`,
 	`Then entry point 1 field "protocol" should equal "HTTPS"`,
 	`Then route 1 field "resource.kind" should equal "VirtualService"`,
@@ -40,15 +50,182 @@ type TraceFunc func(context.Context, string) (model.Analysis, error)
 
 type scenarioState struct {
 	trace            TraceFunc
+	auditFunc        AuditFunc
 	manifestName     string
 	environmentNames []string
 	analysis         model.Analysis
 	traced           bool
+	auditResult      audit.Result
+	audited          bool
+	gatewayFound     bool
 }
 
 func (s *scenarioState) reset() {
 	s.analysis = model.Analysis{}
 	s.traced = false
+	s.auditResult = audit.Result{}
+	s.audited = false
+	s.gatewayFound = false
+}
+
+func (s *scenarioState) auditGateway(ctx context.Context, identity string) error {
+	namespace, name, ok := strings.Cut(identity, "/")
+	if !ok || namespace == "" || name == "" || strings.Contains(name, "/") {
+		return fmt.Errorf("audit Gateway identity %q must use namespace/name syntax", identity)
+	}
+	if s.auditFunc == nil {
+		return fmt.Errorf("audit Gateway %q: audit function is not configured", identity)
+	}
+	result, outcome, err := s.auditFunc(ctx, namespace, name)
+	if err != nil {
+		return fmt.Errorf("audit Gateway %q: %w", identity, err)
+	}
+	if err := outcome.Validate(); err != nil {
+		return fmt.Errorf("audit Gateway %q: %w", identity, err)
+	}
+	s.auditResult = result
+	s.audited = true
+	s.gatewayFound = outcome == audit.OutcomeTargetFound
+	return nil
+}
+
+func (s *scenarioState) requireAudit() error {
+	if !s.audited {
+		return fmt.Errorf("expected a Gateway audit before this assertion, got no audit")
+	}
+	return nil
+}
+
+func (s *scenarioState) assertGatewayFound(found bool) error {
+	if err := s.requireAudit(); err != nil {
+		return err
+	}
+	if s.gatewayFound != found {
+		expected, actual := "gateway not found", "gateway found"
+		if found {
+			expected, actual = actual, expected
+		}
+		return assertionFailure(expected, actual)
+	}
+	return nil
+}
+
+func (s *scenarioState) assertAuditFinding(code string, severity model.FindingSeverity, category audit.Category) error {
+	if err := s.requireAudit(); err != nil {
+		return err
+	}
+	for _, finding := range s.auditResult.Findings {
+		if finding.Code == code && finding.Severity == severity && finding.Category == string(category) {
+			return nil
+		}
+	}
+	return assertionFailure(
+		fmt.Sprintf("finding %q with severity %q and category %q", code, severity, category),
+		summarizeAuditFindings(s.auditResult.Findings),
+	)
+}
+
+func (s *scenarioState) assertAuditFindingResource(code, kind, identity string) error {
+	if err := s.requireAudit(); err != nil {
+		return err
+	}
+	namespace, name, ok := strings.Cut(identity, "/")
+	if kind == "Namespace" && !ok && identity != "" {
+		namespace = ""
+		name = identity
+		ok = true
+	}
+	if !ok || name == "" || (kind != "Namespace" && namespace == "") || strings.Contains(name, "/") {
+		return fmt.Errorf("audit resource identity %q must use namespace/name syntax", identity)
+	}
+	for _, finding := range s.auditResult.Findings {
+		if finding.Code != code {
+			continue
+		}
+		for _, resource := range finding.Resources {
+			if resource.Kind == kind && resource.Namespace == namespace && resource.Name == name {
+				return nil
+			}
+		}
+	}
+	return assertionFailure(
+		fmt.Sprintf("finding %q involving %s %s", code, kind, identity),
+		summarizeAuditFindings(s.auditResult.Findings),
+	)
+}
+
+func (s *scenarioState) assertNoAuditFinding(code string) error {
+	if err := s.requireAudit(); err != nil {
+		return err
+	}
+	for _, finding := range s.auditResult.Findings {
+		if finding.Code == code {
+			return assertionFailure(
+				fmt.Sprintf("no finding with code %q", code),
+				summarizeAuditFindings(s.auditResult.Findings),
+			)
+		}
+	}
+	return nil
+}
+
+func (s *scenarioState) assertRoutePrecedence(identity string, ruleIndex int, expected audit.PrecedenceState) error {
+	if err := s.requireAudit(); err != nil {
+		return err
+	}
+	namespace, name, ok := strings.Cut(identity, "/")
+	if !ok || namespace == "" || name == "" || strings.Contains(name, "/") {
+		return fmt.Errorf("route identity %q must use namespace/name syntax", identity)
+	}
+	for _, route := range s.auditResult.Routes {
+		if route.Identity.Namespace != namespace || route.Identity.Name != name {
+			continue
+		}
+		if ruleIndex < 1 || ruleIndex > len(route.Rules) {
+			break
+		}
+		actual := route.Rules[ruleIndex-1].Precedence
+		if actual != expected {
+			return assertionFailure(
+				fmt.Sprintf("rule %d of route %q to be %q", ruleIndex, identity, expected),
+				string(actual),
+			)
+		}
+		return nil
+	}
+	return assertionFailure(
+		fmt.Sprintf("rule %d of route %q to be %q", ruleIndex, identity, expected),
+		summarizeAuditRoutes(s.auditResult.Routes),
+	)
+}
+
+func (s *scenarioState) assertPartialOverlap(identity string, ruleIndex int, otherIdentity string, otherRuleIndex int) error {
+	if err := s.assertRoutePrecedence(identity, ruleIndex, audit.PrecedencePartialOverlap); err != nil {
+		return err
+	}
+	return s.assertRoutePrecedence(otherIdentity, otherRuleIndex, audit.PrecedenceWinner)
+}
+
+func summarizeAuditFindings(findings []model.Finding) string {
+	if len(findings) == 0 {
+		return "no findings"
+	}
+	values := make([]string, 0, len(findings))
+	for _, finding := range findings {
+		values = append(values, fmt.Sprintf("%s %s (%s)", finding.Code, finding.Severity, finding.Category))
+	}
+	return strings.Join(values, "; ")
+}
+
+func summarizeAuditRoutes(routes []audit.Route) string {
+	if len(routes) == 0 {
+		return "no routes"
+	}
+	values := make([]string, 0, len(routes))
+	for _, route := range routes {
+		values = append(values, fmt.Sprintf("%s %s/%s", route.Identity.Kind, route.Identity.Namespace, route.Identity.Name))
+	}
+	return strings.Join(values, "; ")
 }
 
 func (s *scenarioState) traceHostname(ctx context.Context, hostname string) error {
@@ -422,8 +599,29 @@ func formatSplit(destinations []weightedDestination) string {
 func registerSteps(ctx *godog.ScenarioContext, state *scenarioState) {
 	ctx.Step(`^the manifests for "([^"]+)"$`, state.assertManifests)
 	ctx.Step(`^I trace the hostname "([^"]+)"$`, state.traceHostname)
+	ctx.Step(`^I audit gateway "([^"]+)"$`, state.auditGateway)
 	ctx.Step(`^the hostname should be found$`, func() error { return state.assertHostnameFound(true) })
 	ctx.Step(`^the hostname should not be found$`, func() error { return state.assertHostnameFound(false) })
+	ctx.Step(`^the gateway should be found$`, func() error { return state.assertGatewayFound(true) })
+	ctx.Step(`^the gateway should not be found$`, func() error { return state.assertGatewayFound(false) })
+	ctx.Step(`^there should be a finding with code "([^"]+)" severity "(info|warning|error)" category "(orphaned|duplicated|precedence|deficient-destination)"$`,
+		func(code, severity, category string) error {
+			return state.assertAuditFinding(code, model.FindingSeverity(severity), audit.Category(category))
+		})
+	ctx.Step(`^finding "([^"]+)" should involve "([^"]+)" "([^"]+)"$`, state.assertAuditFindingResource)
+	ctx.Step(`^there should be no finding with code "([^"]+)"$`, state.assertNoAuditFinding)
+	ctx.Step(`^rule (\d+) of route "([^"]+)" should (win|be shadowed)$`,
+		func(ruleIndex int, identity, stateName string) error {
+			expected := audit.PrecedenceWinner
+			if stateName == "be shadowed" {
+				expected = audit.PrecedenceShadowed
+			}
+			return state.assertRoutePrecedence(identity, ruleIndex, expected)
+		})
+	ctx.Step(`^rule (\d+) of route "([^"]+)" should partially overlap rule (\d+) of route "([^"]+)"$`,
+		func(ruleIndex int, identity string, otherRuleIndex int, otherIdentity string) error {
+			return state.assertPartialOverlap(identity, ruleIndex, otherIdentity, otherRuleIndex)
+		})
 	ctx.Step(`^a route should match$`, func() error { return state.assertRouteMatch(true) })
 	ctx.Step(`^no route should match$`, func() error { return state.assertRouteMatch(false) })
 	ctx.Step(`^it should be exposed through gateway "([^"]+)"$`, state.assertGateway)

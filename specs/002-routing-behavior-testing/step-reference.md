@@ -71,6 +71,32 @@ trace fact. The following declarative forms cover common chart expectations:
 The concise forms are equivalent to structured field assertions. They must report
 `expected X, got Y` using the trace result when the assertion fails.
 
+## Audit a Gateway
+
+Gateway audit steps run against the current offline manifest set. The test command
+does not initialize a Kubernetes client for these assertions. A target is written
+as `namespace/name`; route and namespaced resource identities use the same form.
+Cluster-scoped resources such as Namespace use their name alone.
+
+| Step | Meaning |
+|---|---|
+| `When I audit gateway "infra/edge"` | Analyze that Gateway or waypoint and retain its independent audit result |
+| `Then the gateway should be found` | Assert that the requested target exists |
+| `Then the gateway should not be found` | Assert that the requested target is absent |
+| `Then there should be a finding with code "rejected-route" severity "error" category "orphaned"` | Match one finding by exact code, severity, and category |
+| `Then finding "rejected-route" should involve "HTTPRoute" "shop/rejected"` | Match an involved resource by kind and identity |
+| `Then there should be no finding with code "duplicate-route-rule"` | Assert that no finding with the given code exists |
+| `Then rule 1 of route "shop/catch-all" should win` | Assert the named one-based rule is a precedence winner |
+| `Then rule 1 of route "shop/old-route" should be shadowed` | Assert the named rule's complete match space is shadowed |
+| `Then rule 1 of route "shop/general" should partially overlap rule 1 of route "shop/specific"` | Assert partial overlap for the first rule and a winning state for the second |
+
+Audit assertions require a preceding `When I audit gateway` step in the same
+scenario. Gateway audit state does not replace or modify hostname trace state.
+Missing Gateway is an assertable result; malformed manifests and audit-source errors
+remain invalid test input. The canonical step contract and scenario semantics are
+also documented in
+[`audit-steps.md`](../003-gateway-routing-audit/contracts/audit-steps.md).
+
 ## Trace fields that can be asserted
 
 - **Entry points**: origin, resource identity, name, hostname, port, protocol, TLS
