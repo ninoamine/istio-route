@@ -1,0 +1,13 @@
+Gateway infra/edge (class: istio, controller: istio.io/gateway-controller)
+  listener https :443 HTTPS hostnames=shop.example.com
+  HTTPRoute shop/exact-health
+    acceptance: accepted (Accepted)
+    rule 1: winner
+      backend shop/api (present)
+  HTTPRoute shop/prefix-root
+    acceptance: accepted (Accepted)
+    rule 1: partial-overlap
+      backend shop/api (present)
+endpoint check: skipped (no EndpointSlices were supplied in the offline input)
+info winning-route-rule: HTTPRoute shop/exact-health rule 1 wins over overlapping lower-precedence HTTPRoute shop/prefix-root rule 1 (decided by path type)
+info partial-overlap-route-rule: HTTPRoute shop/prefix-root rule 1 partially overlaps HTTPRoute shop/exact-health rule 1 (decided by path type) and remains eligible for unmatched traffic

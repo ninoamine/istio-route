@@ -291,6 +291,9 @@ type Rule struct {
 	Backends      []Backend       `json:"backends,omitempty" yaml:"backends,omitempty"`
 	Precedence    PrecedenceState `json:"precedence" yaml:"precedence"`
 	CreatedAt     *metav1.Time    `json:"createdAt,omitempty" yaml:"createdAt,omitempty"`
+
+	// decision is unexported so it stays out of the JSON/YAML schema.
+	decision precedenceDecision
 }
 
 func (r Rule) Validate() error {

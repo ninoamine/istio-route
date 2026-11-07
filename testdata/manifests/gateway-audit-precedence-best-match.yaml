@@ -1,0 +1,106 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: istio
+spec:
+  controllerName: istio.io/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: edge
+  namespace: infra
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: shop.example.com
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+status:
+  conditions:
+    - type: Programmed
+      status: "True"
+      reason: Programmed
+      message: Gateway is programmed
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: shop
+spec:
+  ports:
+    - port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: catalog-prefixes
+  namespace: shop
+spec:
+  parentRefs:
+    - name: edge
+      namespace: infra
+      sectionName: https
+  hostnames:
+    - shop.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /search
+        - path:
+            type: PathPrefix
+            value: /catalog
+      backendRefs:
+        - name: api
+          port: 8080
+status:
+  parents:
+    - parentRef:
+        name: edge
+        namespace: infra
+        sectionName: https
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - type: Accepted
+          status: "True"
+          reason: Accepted
+          message: Route is accepted
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: catalog-exact
+  namespace: shop
+spec:
+  parentRefs:
+    - name: edge
+      namespace: infra
+      sectionName: https
+  hostnames:
+    - shop.example.com
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /catalog
+      backendRefs:
+        - name: api
+          port: 8080
+status:
+  parents:
+    - parentRef:
+        name: edge
+        namespace: infra
+        sectionName: https
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - type: Accepted
+          status: "True"
+          reason: Accepted
+          message: Route is accepted

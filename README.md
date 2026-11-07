@@ -151,6 +151,48 @@ the requested Gateway is absent, `2` for invalid usage, and `1` for runtime, sou
 or parsing errors. The literal root hostname `analyze` is reserved for this
 subcommand; other hostname arguments retain the existing trace behavior.
 
+### Route rule precedence
+
+When two rules that share a listener and have intersecting hostnames overlap, the audit decides which
+rule wins by comparing each rule's best match, in this order. The first criterion
+that differs decides the outcome:
+
+1. **Path type**: `Exact` beats `PathPrefix`, which beats `RegularExpression`, which beats
+   a rule with no path match (see the ranking below).
+2. **Prefix length**: for `PathPrefix`, the longer prefix wins, counted in path segments
+   rather than characters.
+3. **Method**: a rule that matches a specific HTTP method beats one that does not.
+4. **Header count**: more header matches win.
+5. **Query parameter count**: more query parameter matches win.
+6. **Creation timestamp**: the older rule wins. If either timestamp is missing, this
+   step is skipped.
+7. **Resource identity**: the lexicographically smaller `group/kind/namespace/name`
+   wins.
+8. **Rule index**: the lower index within its route wins.
+
+A rule with no matches is ranked as `PathPrefix "/"`. Path types rank as
+`Exact` > `PathPrefix` > `RegularExpression` > no path. RegularExpression matches
+therefore rank below Exact and PathPrefix but above a rule with no path; this
+placement follows the implementation-specific behavior the Gateway API specification
+leaves open.
+
+Limitations:
+
+- GRPCRoute rules are compared only on path, method, header, and query-parameter
+  criteria. GRPC `service` and `method` fields do not influence precedence.
+- Only HTTPRoute and GRPCRoute rules take part in precedence comparison. Other route
+  kinds are excluded.
+
+Precedence findings name the competing rule (`<kind> <namespace>/<name> rule <index>`)
+and the criterion that decided the outcome, for example
+`HTTPRoute infra/web rule 1 is shadowed by HTTPRoute infra/api rule 0 (decided by path type)`. The criterion
+is one of `path type`, `prefix length`, `method`, `headers`, `query params`,
+`creation timestamp`, `namespace/name`, or `rule index`.
+
+Two overlapping rules that are equal on every criterion and tie-breaker produce an
+`undecided-route-rule-overlap` info finding on each rule, because no winner can be
+determined.
+
 ## Test rendered routing behavior
 
 The `test` subcommand evaluates Gherkin feature files against rendered manifests
