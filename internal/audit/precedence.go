@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"time"
@@ -30,8 +31,12 @@ func applyPrecedence(result *Result) {
 		ref := &refs[i]
 		ref.route = result.Routes[ref.routeIndex]
 		ref.rule = &result.Routes[ref.routeIndex].Rules[ref.ruleIndex]
-		ref.rule.Precedence = PrecedenceWinner
 	}
+	// Each slot holds the first decisive comparison for that rule, so findings can name the competitor and criterion.
+	overlapped := make([]*precedenceDecision, len(refs))
+	covered := make([]*precedenceDecision, len(refs))
+	beats := make([]*precedenceDecision, len(refs))
+	undecided := make([]string, len(refs))
 	for i := 0; i < len(refs); i++ {
 		for j := i + 1; j < len(refs); j++ {
 			left, right := refs[i], refs[j]
@@ -44,37 +49,92 @@ func applyPrecedence(result *Result) {
 			if rulesEquivalent(left, right) {
 				continue
 			}
-			preference := compareRulePrecedence(left, right)
-			if preference == 0 {
-				continue
-			}
-			if preference > 0 {
-				if rulesCover(left, right) {
-					right.rule.Precedence = PrecedenceShadowed
-				} else {
-					right.rule.Precedence = PrecedencePartialOverlap
+			outcome, criterion := compareRulePrecedence(left, right)
+			winnerIndex, loserIndex := i, j
+			switch outcome {
+			case outcomeLeftWins:
+			case outcomeRightWins:
+				winnerIndex, loserIndex = j, i
+			default:
+				// No winner is invented: neither rule gets a shadowed or partial-overlap state from this pair.
+				if undecided[i] == "" {
+					undecided[i] = ruleLabel(right.route.Identity, right.rule.Index)
+				}
+				if undecided[j] == "" {
+					undecided[j] = ruleLabel(left.route.Identity, left.rule.Index)
 				}
 				continue
 			}
-			if rulesCover(right, left) {
-				left.rule.Precedence = PrecedenceShadowed
-			} else {
-				left.rule.Precedence = PrecedencePartialOverlap
+			winner, loser := refs[winnerIndex], refs[loserIndex]
+			if beats[winnerIndex] == nil {
+				beats[winnerIndex] = newPrecedenceDecision(loser, criterion)
+			}
+			if overlapped[loserIndex] == nil {
+				overlapped[loserIndex] = newPrecedenceDecision(winner, criterion)
+			}
+			if covered[loserIndex] == nil && rulesCover(winner, loser) {
+				covered[loserIndex] = newPrecedenceDecision(winner, criterion)
 			}
 		}
 	}
+	for i, ref := range refs {
+		switch {
+		case covered[i] != nil:
+			ref.rule.Precedence = PrecedenceShadowed
+			ref.rule.decision = *covered[i]
+		case overlapped[i] != nil:
+			ref.rule.Precedence = PrecedencePartialOverlap
+			ref.rule.decision = *overlapped[i]
+		default:
+			ref.rule.Precedence = PrecedenceWinner
+			if beats[i] != nil {
+				ref.rule.decision = *beats[i]
+			}
+		}
+		ref.rule.decision.undecidedWith = undecided[i]
+	}
+}
+
+// precedenceDecision records the competing rule and the criterion that decided the outcome.
+type precedenceDecision struct {
+	competitor string
+	criterion  string
+	// undecidedWith names a rule that overlaps this one with equal precedence on every criterion.
+	undecidedWith string
+}
+
+func newPrecedenceDecision(other ruleRef, criterion string) *precedenceDecision {
+	return &precedenceDecision{
+		competitor: ruleLabel(other.route.Identity, other.rule.Index),
+		criterion:  criterion,
+	}
+}
+
+func ruleLabel(identity model.ResourceIdentity, index int) string {
+	return fmt.Sprintf("%s %s/%s rule %d", identity.Kind, identity.Namespace, identity.Name, index)
 }
 
 func precedenceFindings(result Result) []model.Finding {
 	var findings []model.Finding
 	for _, route := range result.Routes {
 		for _, rule := range route.Rules {
+			self := ruleLabel(route.Identity, rule.Index)
+			if rule.decision.undecidedWith != "" {
+				findings = append(findings, model.Finding{
+					Code:         "undecided-route-rule-overlap",
+					Severity:     model.FindingSeverityInfo,
+					Message:      fmt.Sprintf("%s overlaps %s with equal precedence on every criterion, so no winner can be determined", self, rule.decision.undecidedWith),
+					Resources:    []model.ResourceIdentity{route.Identity},
+					Category:     string(CategoryPrecedence),
+					SuggestedFix: "Differentiate the overlapping rules (path, method, headers or query params) so one deterministically takes precedence.",
+				})
+			}
 			switch rule.Precedence {
 			case PrecedenceShadowed:
 				findings = append(findings, model.Finding{
 					Code:         "shadowed-route-rule",
 					Severity:     model.FindingSeverityWarning,
-					Message:      fmt.Sprintf("%s %s/%s rule %d is shadowed by a higher-precedence rule", route.Identity.Kind, route.Identity.Namespace, route.Identity.Name, rule.Index),
+					Message:      fmt.Sprintf("%s is shadowed by %s (decided by %s)", self, rule.decision.competitor, rule.decision.criterion),
 					Resources:    []model.ResourceIdentity{route.Identity},
 					Category:     string(CategoryPrecedence),
 					SuggestedFix: "Reorder or narrow the higher-precedence route so the lower-priority rule still receives applicable traffic.",
@@ -83,134 +143,178 @@ func precedenceFindings(result Result) []model.Finding {
 				findings = append(findings, model.Finding{
 					Code:         "partial-overlap-route-rule",
 					Severity:     model.FindingSeverityInfo,
-					Message:      fmt.Sprintf("%s %s/%s rule %d partially overlaps a higher-precedence rule and remains eligible for unmatched traffic", route.Identity.Kind, route.Identity.Namespace, route.Identity.Name, rule.Index),
+					Message:      fmt.Sprintf("%s partially overlaps %s (decided by %s) and remains eligible for unmatched traffic", self, rule.decision.competitor, rule.decision.criterion),
 					Resources:    []model.ResourceIdentity{route.Identity},
 					Category:     string(CategoryPrecedence),
 					SuggestedFix: "Keep the lower-priority rule only if it intentionally handles traffic outside the overlapping match set.",
 				})
 			case PrecedenceWinner:
-				if hasOverlappingRule(result, route, rule) {
-					findings = append(findings, model.Finding{
-						Code:         "winning-route-rule",
-						Severity:     model.FindingSeverityInfo,
-						Message:      fmt.Sprintf("%s %s/%s rule %d wins over overlapping lower-precedence rules", route.Identity.Kind, route.Identity.Namespace, route.Identity.Name, rule.Index),
-						Resources:    []model.ResourceIdentity{route.Identity},
-						Category:     string(CategoryPrecedence),
-						SuggestedFix: "Review overlapping rules to confirm the winning precedence is intentional.",
-					})
+				if rule.decision.competitor == "" {
+					continue
 				}
+				findings = append(findings, model.Finding{
+					Code:         "winning-route-rule",
+					Severity:     model.FindingSeverityInfo,
+					Message:      fmt.Sprintf("%s wins over overlapping lower-precedence %s (decided by %s)", self, rule.decision.competitor, rule.decision.criterion),
+					Resources:    []model.ResourceIdentity{route.Identity},
+					Category:     string(CategoryPrecedence),
+					SuggestedFix: "Review overlapping rules to confirm the winning precedence is intentional.",
+				})
 			}
 		}
 	}
 	return findings
 }
 
-func hasOverlappingRule(result Result, route Route, rule Rule) bool {
-	for _, otherRoute := range result.Routes {
-		if otherRoute.Identity == route.Identity {
-			continue
-		}
-		for _, otherRule := range otherRoute.Rules {
-			left := ruleRef{route: route, rule: &rule}
-			right := ruleRef{route: otherRoute, rule: &otherRule}
-			if !rulesShareTraffic(left, right) || !rulesOverlap(left, right) {
-				continue
-			}
-			if rulesEquivalent(left, right) {
-				continue
-			}
-			if compareRulePrecedence(left, right) < 0 {
-				return true
-			}
-		}
-	}
-	return false
+type precedenceOutcome int
+
+const (
+	outcomeUndecided precedenceOutcome = iota
+	outcomeLeftWins
+	outcomeRightWins
+)
+
+const (
+	criterionPathType     = "path type"
+	criterionPrefixLength = "prefix length"
+	criterionMethod       = "method"
+	criterionHeaders      = "headers"
+	criterionQueryParams  = "query params"
+	criterionCreatedAt    = "creation timestamp"
+	criterionNamespace    = "namespace/name"
+	criterionRuleIndex    = "rule index"
+	criterionUndecided    = "undecided"
+)
+
+const (
+	pathRankNone = iota
+	pathRankRegularExpression
+	pathRankPathPrefix
+	pathRankExact
+)
+
+// matchKey is compared lexicographically; larger wins. prefixSegments is only
+// set for PathPrefix matches, so it is significant only when both sides are
+// PathPrefix (equal path ranks imply equal path types).
+type matchKey struct {
+	pathRank       int
+	prefixSegments int
+	hasMethod      bool
+	headerCount    int
+	queryCount     int
 }
 
-func compareRulePrecedence(left, right ruleRef) int {
-	leftSpecificity := ruleSpecificity(left.rule)
-	rightSpecificity := ruleSpecificity(right.rule)
-	if leftSpecificity != rightSpecificity {
-		if leftSpecificity > rightSpecificity {
-			return 1
+// newMatchKey ranks a match. For HTTP matches (httpPath), a missing path is
+// the Gateway API default PathPrefix "/"; gRPC matches have no path.
+func newMatchKey(match Match, httpPath bool) matchKey {
+	key := matchKey{
+		hasMethod:   match.Method != "",
+		headerCount: len(match.Headers),
+		queryCount:  len(match.QueryParams),
+	}
+	if match.Path == nil {
+		if httpPath && match.GRPC == nil {
+			key.pathRank = pathRankPathPrefix
 		}
-		return -1
+		return key
 	}
-	leftTime, rightTime := time.Time{}, time.Time{}
-	if left.rule.CreatedAt != nil {
-		leftTime = left.rule.CreatedAt.Time
+	switch match.Path.Type {
+	case "Exact":
+		key.pathRank = pathRankExact
+	case "PathPrefix":
+		key.pathRank = pathRankPathPrefix
+		key.prefixSegments = pathSegments(match.Path.Value)
+	case "RegularExpression":
+		key.pathRank = pathRankRegularExpression
 	}
-	if right.rule.CreatedAt != nil {
-		rightTime = right.rule.CreatedAt.Time
-	}
-	if !leftTime.Equal(rightTime) {
-		if leftTime.Before(rightTime) {
-			return 1
-		}
-		return -1
-	}
-	leftKey := identityKey(left.route.Identity)
-	rightKey := identityKey(right.route.Identity)
-	if leftKey != rightKey {
-		if leftKey < rightKey {
-			return 1
-		}
-		return -1
-	}
-	if left.rule.Index != right.rule.Index {
-		if left.rule.Index < right.rule.Index {
-			return 1
-		}
-		return -1
-	}
-	return 0
+	return key
 }
 
-func ruleSpecificity(rule *Rule) int {
-	if rule == nil {
+func pathSegments(value string) int {
+	trimmed := strings.Trim(value, "/")
+	if trimmed == "" {
 		return 0
 	}
-	score := 0
-	for _, match := range rule.Matches {
-		score += matchSpecificity(match)
-	}
-	if len(rule.Matches) == 0 {
-		score = 1
-	}
-	return score
+	return strings.Count(trimmed, "/") + 1
 }
 
-func matchSpecificity(match Match) int {
-	score := 0
-	if match.Path != nil {
-		switch match.Path.Type {
-		case "Exact":
-			score += 60
-		case "PathPrefix":
-			score += 40
-		case "RegularExpression":
-			score += 20
-		default:
-			score += 10
+// compare returns the sign of key versus other and the deciding criterion.
+func (key matchKey) compare(other matchKey) (int, string) {
+	if c := cmp.Compare(key.pathRank, other.pathRank); c != 0 {
+		return c, criterionPathType
+	}
+	if c := cmp.Compare(key.prefixSegments, other.prefixSegments); c != 0 {
+		return c, criterionPrefixLength
+	}
+	if key.hasMethod != other.hasMethod {
+		if key.hasMethod {
+			return 1, criterionMethod
 		}
-		if match.Path.Value != "" && match.Path.Value != "/" {
-			score += 10
+		return -1, criterionMethod
+	}
+	if c := cmp.Compare(key.headerCount, other.headerCount); c != 0 {
+		return c, criterionHeaders
+	}
+	if c := cmp.Compare(key.queryCount, other.queryCount); c != 0 {
+		return c, criterionQueryParams
+	}
+	return 0, ""
+}
+
+// ruleKey is the best match key of the rule. A rule with no matches is ranked as
+// a single empty match, so on HTTP routes it equals PathPrefix "/".
+func ruleKey(ref ruleRef) matchKey {
+	var best matchKey
+	if ref.rule == nil {
+		return best
+	}
+	httpPath := ref.route.Identity.Kind != "GRPCRoute"
+	if len(ref.rule.Matches) == 0 {
+		return newMatchKey(Match{}, httpPath)
+	}
+	for _, match := range ref.rule.Matches {
+		key := newMatchKey(match, httpPath)
+		if c, _ := key.compare(best); c > 0 {
+			best = key
 		}
 	}
-	if match.Method != "" {
-		score += 20
+	return best
+}
+
+func compareRulePrecedence(left, right ruleRef) (precedenceOutcome, string) {
+	if c, criterion := ruleKey(left).compare(ruleKey(right)); c != 0 {
+		return outcomeFor(c), criterion
 	}
-	score += len(match.Headers) * 12
-	score += len(match.QueryParams) * 12
-	if match.GRPC != nil {
-		if match.GRPC.Service != "" {
-			score += 18
-		}
-		if match.GRPC.Method != "" {
-			score += 18
+	// A missing timestamp is unknown, not oldest: skip the step unless both are known.
+	if leftTime, ok := creationTime(left.rule); ok {
+		if rightTime, ok := creationTime(right.rule); ok {
+			if c := leftTime.Compare(rightTime); c != 0 {
+				return outcomeFor(-c), criterionCreatedAt
+			}
 		}
 	}
-	return score
+	if c := strings.Compare(identityKey(left.route.Identity), identityKey(right.route.Identity)); c != 0 {
+		return outcomeFor(-c), criterionNamespace
+	}
+	if c := cmp.Compare(left.rule.Index, right.rule.Index); c != 0 {
+		return outcomeFor(-c), criterionRuleIndex
+	}
+	return outcomeUndecided, criterionUndecided
+}
+
+func creationTime(rule *Rule) (time.Time, bool) {
+	if rule.CreatedAt == nil || rule.CreatedAt.IsZero() {
+		return time.Time{}, false
+	}
+	return rule.CreatedAt.Time, true
+}
+
+// outcomeFor maps a positive comparison to a left win and a negative one to a right win.
+func outcomeFor(c int) precedenceOutcome {
+	if c > 0 {
+		return outcomeLeftWins
+	}
+	return outcomeRightWins
 }
 
 func rulesShareTraffic(left, right ruleRef) bool {

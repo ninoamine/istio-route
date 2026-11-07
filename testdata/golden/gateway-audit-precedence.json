@@ -1,0 +1,261 @@
+{
+  "source": {
+    "mode": "files",
+    "files": [
+      "../../testdata/manifests/gateway-audit-precedence-exact-vs-prefix.yaml"
+    ]
+  },
+  "gateway": {
+    "identity": {
+      "group": "gateway.networking.k8s.io",
+      "version": "v1",
+      "kind": "Gateway",
+      "namespace": "infra",
+      "name": "edge"
+    },
+    "class": {
+      "identity": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "GatewayClass",
+        "name": "istio"
+      },
+      "controller": "istio.io/gateway-controller"
+    },
+    "programmed": {
+      "type": "Programmed",
+      "status": "True",
+      "reason": "Programmed",
+      "message": "Gateway is programmed"
+    }
+  },
+  "listeners": [
+    {
+      "name": "https",
+      "hostnames": [
+        "shop.example.com"
+      ],
+      "port": 443,
+      "protocol": "HTTPS",
+      "routeConstraints": [
+        "HTTPRoute"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "identity": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "HTTPRoute",
+        "namespace": "shop",
+        "name": "exact-health"
+      },
+      "hostnames": [
+        "shop.example.com"
+      ],
+      "parentRefs": [
+        {
+          "identity": {
+            "group": "gateway.networking.k8s.io",
+            "version": "v1",
+            "kind": "Gateway",
+            "namespace": "infra",
+            "name": "edge"
+          },
+          "sectionName": "https"
+        }
+      ],
+      "acceptance": [
+        {
+          "parent": {
+            "identity": {
+              "group": "gateway.networking.k8s.io",
+              "version": "v1",
+              "kind": "Gateway",
+              "namespace": "infra",
+              "name": "edge"
+            },
+            "sectionName": "https"
+          },
+          "listenerName": "https",
+          "state": "accepted",
+          "reason": "Accepted",
+          "message": "Route is accepted"
+        }
+      ],
+      "rules": [
+        {
+          "index": 1,
+          "listenerNames": [
+            "https"
+          ],
+          "matches": [
+            {
+              "path": {
+                "type": "Exact",
+                "value": "/a"
+              }
+            }
+          ],
+          "backends": [
+            {
+              "reference": {
+                "kind": "Service",
+                "namespace": "shop",
+                "name": "api",
+                "port": 8080
+              },
+              "service": {
+                "identity": {
+                  "version": "v1",
+                  "kind": "Service",
+                  "namespace": "shop",
+                  "name": "api"
+                },
+                "availability": "present",
+                "ports": [
+                  8080
+                ],
+                "portPresent": true,
+                "endpointSlicesSupplied": false,
+                "readyAddressCount": 0
+              }
+            }
+          ],
+          "precedence": "winner"
+        }
+      ]
+    },
+    {
+      "identity": {
+        "group": "gateway.networking.k8s.io",
+        "version": "v1",
+        "kind": "HTTPRoute",
+        "namespace": "shop",
+        "name": "prefix-root"
+      },
+      "hostnames": [
+        "shop.example.com"
+      ],
+      "parentRefs": [
+        {
+          "identity": {
+            "group": "gateway.networking.k8s.io",
+            "version": "v1",
+            "kind": "Gateway",
+            "namespace": "infra",
+            "name": "edge"
+          },
+          "sectionName": "https"
+        }
+      ],
+      "acceptance": [
+        {
+          "parent": {
+            "identity": {
+              "group": "gateway.networking.k8s.io",
+              "version": "v1",
+              "kind": "Gateway",
+              "namespace": "infra",
+              "name": "edge"
+            },
+            "sectionName": "https"
+          },
+          "listenerName": "https",
+          "state": "accepted",
+          "reason": "Accepted",
+          "message": "Route is accepted"
+        }
+      ],
+      "rules": [
+        {
+          "index": 1,
+          "listenerNames": [
+            "https"
+          ],
+          "matches": [
+            {
+              "path": {
+                "type": "PathPrefix",
+                "value": "/"
+              },
+              "headers": [
+                {
+                  "name": "x-canary",
+                  "type": "",
+                  "value": "true"
+                }
+              ],
+              "method": "GET"
+            }
+          ],
+          "backends": [
+            {
+              "reference": {
+                "kind": "Service",
+                "namespace": "shop",
+                "name": "api",
+                "port": 8080
+              },
+              "service": {
+                "identity": {
+                  "version": "v1",
+                  "kind": "Service",
+                  "namespace": "shop",
+                  "name": "api"
+                },
+                "availability": "present",
+                "ports": [
+                  8080
+                ],
+                "portPresent": true,
+                "endpointSlicesSupplied": false,
+                "readyAddressCount": 0
+              }
+            }
+          ],
+          "precedence": "partial-overlap"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "code": "winning-route-rule",
+      "severity": "info",
+      "message": "HTTPRoute shop/exact-health rule 1 wins over overlapping lower-precedence HTTPRoute shop/prefix-root rule 1 (decided by path type)",
+      "resources": [
+        {
+          "group": "gateway.networking.k8s.io",
+          "version": "v1",
+          "kind": "HTTPRoute",
+          "namespace": "shop",
+          "name": "exact-health"
+        }
+      ],
+      "category": "precedence",
+      "suggestedFix": "Review overlapping rules to confirm the winning precedence is intentional."
+    },
+    {
+      "code": "partial-overlap-route-rule",
+      "severity": "info",
+      "message": "HTTPRoute shop/prefix-root rule 1 partially overlaps HTTPRoute shop/exact-health rule 1 (decided by path type) and remains eligible for unmatched traffic",
+      "resources": [
+        {
+          "group": "gateway.networking.k8s.io",
+          "version": "v1",
+          "kind": "HTTPRoute",
+          "namespace": "shop",
+          "name": "prefix-root"
+        }
+      ],
+      "category": "precedence",
+      "suggestedFix": "Keep the lower-priority rule only if it intentionally handles traffic outside the overlapping match set."
+    }
+  ],
+  "endpointCheck": {
+    "state": "skipped",
+    "reason": "no EndpointSlices were supplied in the offline input"
+  }
+}

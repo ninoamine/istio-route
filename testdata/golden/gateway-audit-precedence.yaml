@@ -1,0 +1,178 @@
+endpointCheck:
+  reason: no EndpointSlices were supplied in the offline input
+  state: skipped
+findings:
+- category: precedence
+  code: winning-route-rule
+  message: HTTPRoute shop/exact-health rule 1 wins over overlapping lower-precedence
+    HTTPRoute shop/prefix-root rule 1 (decided by path type)
+  resources:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: exact-health
+    namespace: shop
+    version: v1
+  severity: info
+  suggestedFix: Review overlapping rules to confirm the winning precedence is intentional.
+- category: precedence
+  code: partial-overlap-route-rule
+  message: HTTPRoute shop/prefix-root rule 1 partially overlaps HTTPRoute shop/exact-health
+    rule 1 (decided by path type) and remains eligible for unmatched traffic
+  resources:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: prefix-root
+    namespace: shop
+    version: v1
+  severity: info
+  suggestedFix: Keep the lower-priority rule only if it intentionally handles traffic
+    outside the overlapping match set.
+gateway:
+  class:
+    controller: istio.io/gateway-controller
+    identity:
+      group: gateway.networking.k8s.io
+      kind: GatewayClass
+      name: istio
+      version: v1
+  identity:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: edge
+    namespace: infra
+    version: v1
+  programmed:
+    message: Gateway is programmed
+    reason: Programmed
+    status: "True"
+    type: Programmed
+listeners:
+- hostnames:
+  - shop.example.com
+  name: https
+  port: 443
+  protocol: HTTPS
+  routeConstraints:
+  - HTTPRoute
+routes:
+- acceptance:
+  - listenerName: https
+    message: Route is accepted
+    parent:
+      identity:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: edge
+        namespace: infra
+        version: v1
+      sectionName: https
+    reason: Accepted
+    state: accepted
+  hostnames:
+  - shop.example.com
+  identity:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: exact-health
+    namespace: shop
+    version: v1
+  parentRefs:
+  - identity:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      name: edge
+      namespace: infra
+      version: v1
+    sectionName: https
+  rules:
+  - backends:
+    - reference:
+        kind: Service
+        name: api
+        namespace: shop
+        port: 8080
+      service:
+        availability: present
+        endpointSlicesSupplied: false
+        identity:
+          kind: Service
+          name: api
+          namespace: shop
+          version: v1
+        portPresent: true
+        ports:
+        - 8080
+        readyAddressCount: 0
+    index: 1
+    listenerNames:
+    - https
+    matches:
+    - path:
+        type: Exact
+        value: /a
+    precedence: winner
+- acceptance:
+  - listenerName: https
+    message: Route is accepted
+    parent:
+      identity:
+        group: gateway.networking.k8s.io
+        kind: Gateway
+        name: edge
+        namespace: infra
+        version: v1
+      sectionName: https
+    reason: Accepted
+    state: accepted
+  hostnames:
+  - shop.example.com
+  identity:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: prefix-root
+    namespace: shop
+    version: v1
+  parentRefs:
+  - identity:
+      group: gateway.networking.k8s.io
+      kind: Gateway
+      name: edge
+      namespace: infra
+      version: v1
+    sectionName: https
+  rules:
+  - backends:
+    - reference:
+        kind: Service
+        name: api
+        namespace: shop
+        port: 8080
+      service:
+        availability: present
+        endpointSlicesSupplied: false
+        identity:
+          kind: Service
+          name: api
+          namespace: shop
+          version: v1
+        portPresent: true
+        ports:
+        - 8080
+        readyAddressCount: 0
+    index: 1
+    listenerNames:
+    - https
+    matches:
+    - headers:
+      - name: x-canary
+        type: ""
+        value: "true"
+      method: GET
+      path:
+        type: PathPrefix
+        value: /
+    precedence: partial-overlap
+source:
+  files:
+  - ../../testdata/manifests/gateway-audit-precedence-exact-vs-prefix.yaml
+  mode: files

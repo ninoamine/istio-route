@@ -34,7 +34,7 @@ func TestAnalyzeGatewayFixtures(t *testing.T) {
 		},
 		{
 			name: "duplicate route rules", fixture: "gateway-audit-duplicate.yaml", gatewayName: "edge", namespace: "infra",
-			wantCodes: []string{"duplicate-route-rule", "shadowed-route-rule"},
+			wantCodes: []string{"duplicate-route-rule", "shadowed-route-rule", "winning-route-rule"},
 		},
 		{
 			name: "unused ReferenceGrant", fixture: "gateway-audit-unused-grant.yaml", gatewayName: "edge", namespace: "infra",

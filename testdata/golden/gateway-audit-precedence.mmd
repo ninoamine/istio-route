@@ -1,0 +1,16 @@
+flowchart LR
+  gateway_e138d4a8adfc["Gateway infra/edge"]
+  HTTPRoute_9a834040bbb4["HTTPRoute shop/exact-health"]
+  gateway_e138d4a8adfc --> HTTPRoute_9a834040bbb4
+  service_737a40b9f86b["Service shop/api"]
+  HTTPRoute_9a834040bbb4 -->|winner| service_737a40b9f86b
+  HTTPRoute_53a989337b2f["HTTPRoute shop/prefix-root"]
+  gateway_e138d4a8adfc --> HTTPRoute_53a989337b2f
+  service_737a40b9f86b["Service shop/api"]
+  HTTPRoute_53a989337b2f -->|partial-overlap| service_737a40b9f86b
+  endpoint_check_389595a44dc9["Endpoint check: skipped (no EndpointSlices were supplied in the offline input)"]
+  gateway_e138d4a8adfc -.-> endpoint_check_389595a44dc9
+  finding_fef9cb47b3b8["info winning-route-rule: HTTPRoute shop/exact-health rule 1 wins over overlapping lower-precedence HTTPRoute shop/prefix-root rule 1 (decided by path type)"]
+  gateway_e138d4a8adfc -.-> finding_fef9cb47b3b8
+  finding_6f58b6171444["info partial-overlap-route-rule: HTTPRoute shop/prefix-root rule 1 partially overlaps HTTPRoute shop/exact-health rule 1 (decided by path type) and remains eligible for unmatched traffic"]
+  gateway_e138d4a8adfc -.-> finding_6f58b6171444
