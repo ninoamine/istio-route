@@ -33,14 +33,26 @@ produce byte-identical serialized results (SC-002).
 
 ## 3. Offline fixtures across all four formats
 
+Each fixture is a self-contained Gateway (`infra/edge`) and must be analyzed on its own,
+because the fixtures redeclare the same `GatewayClass`. Pass `-f` once per file:
+
 ```sh
-go run ./cmd/istio-route audit gateway <gateway> --namespace <ns> \
-  --from-files testdata/manifests/gateway-audit-precedence-*.yaml --output text
+go run ./cmd/istio-route analyze edge --namespace infra \
+  -f testdata/manifests/gateway-audit-precedence-shadowed.yaml --output text
+```
+
+Loop over all fixtures:
+
+```sh
+for f in testdata/manifests/gateway-audit-precedence-*.yaml; do
+  go run ./cmd/istio-route analyze edge --namespace infra -f "$f" --output text
+done
 ```
 
 Repeat with `--output json|yaml|mermaid`. Expected: the spec-compliant winner, shadowed,
 and partial-overlap rules per fixture; findings name the competing rule and deciding
-criterion; all four formats agree on rules, states, and findings (SC-004); exit code 0.
+criterion; all four formats agree on rules, states, and findings (SC-004). Exit code is
+4 when the audit reports findings (`audit findings present`), 0 when it has none.
 
 ## 4. Golden files
 

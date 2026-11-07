@@ -107,7 +107,7 @@ No foundational tasks required. Per plan.md, the change is confined to `internal
 ### Implementation for User Story 3
 
 - [X] T017 [US3] Make audit result construction fully order-independent wherever T015 surfaces dependence (for example deterministic ordering of `Findings` assembled in `internal/audit/audit.go` and `internal/audit/precedence.go`), without changing overlap/coverage logic (FR-007, FR-010)
-- [ ] T018 [US3] Non-regression sweep: run `go test -race ./...` including the Godog suite in `internal/cli/test_test.go` and confirm versus the T001 baseline that existing audit scenarios show no outcome changes beyond the documented precedence corrections and finding wording (SC-005); update `testdata/features/gateway-audit-overlap.feature` only where the new finding wording or corrected winners require it
+- [X] T018 [US3] Non-regression sweep: run `go test -race ./...` including the Godog suite in `internal/cli/test_test.go` and confirm versus the T001 baseline that existing audit scenarios show no outcome changes beyond the documented precedence corrections and finding wording (SC-005); update `testdata/features/gateway-audit-overlap.feature` only where the new finding wording or corrected winners require it
 
 **Checkpoint**: Permutation and cross-format tests pass; only documented diffs versus baseline - User Story 3 is independently testable
 
@@ -117,10 +117,10 @@ No foundational tasks required. Per plan.md, the change is confined to `internal
 
 **Purpose**: Documentation and quality gates affecting the whole feature
 
-- [ ] T019 [P] Document the precedence limitations in `README.md`: RegularExpression path matches rank below Exact/PathPrefix and above no-path (implementation-specific per the Gateway API specification, FR-004); GRPCRoute rules are compared on path/method/header/query-param criteria only (GRPC service/method fields do not influence precedence); route kinds other than HTTPRoute/GRPCRoute are excluded from precedence comparison (FR-009, contracts/cli.md)
-- [ ] T020 Document the normative lexicographic precedence order (Exact path, longest Prefix path by segments, method, header count, query param count, then creation timestamp, namespace/name, rule index), the finding wording change naming the competing rule and deciding criterion, and the new `undecided-route-rule-overlap` info code in `README.md` (FR-008, FR-012)
-- [ ] T021 Run the quality gates from the repository root: `gofumpt -l .`, `go vet ./...`, `golangci-lint run`, and `go test -race ./...` must all pass, with `internal/` coverage at or above 80% (Constitution I)
-- [ ] T022 Run every `specs/004-gateway-api-precedence/quickstart.md` validation scenario end-to-end (unit tests, permutation tests, four-format CLI runs over the new fixtures with exit code 0, golden files, quality gates) and confirm the expected results
+- [X] T019 [P] Document the precedence limitations in `README.md`: RegularExpression path matches rank below Exact/PathPrefix and above no-path (implementation-specific per the Gateway API specification, FR-004); GRPCRoute rules are compared on path/method/header/query-param criteria only (GRPC service/method fields do not influence precedence); route kinds other than HTTPRoute/GRPCRoute are excluded from precedence comparison (FR-009, contracts/cli.md)
+- [X] T020 Document the normative lexicographic precedence order (Exact path, longest Prefix path by segments, method, header count, query param count, then creation timestamp, namespace/name, rule index), the finding wording change naming the competing rule and deciding criterion, and the new `undecided-route-rule-overlap` info code in `README.md` (FR-008, FR-012)
+- [X] T021 Run the quality gates from the repository root: `gofumpt -l .`, `go vet ./...`, `golangci-lint run`, and `go test -race ./...` must all pass, with `internal/` coverage at or above 80% (Constitution I)
+- [X] T022 Run every `specs/004-gateway-api-precedence/quickstart.md` validation scenario end-to-end (unit tests, permutation tests, four-format CLI runs over the new fixtures with exit code 0, golden files, quality gates) and confirm the expected results
 
 ---
 
