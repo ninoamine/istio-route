@@ -1,0 +1,116 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: istio-waypoint
+spec:
+  controllerName: istio.io/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: mesh
+  generation: 1
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: hbone
+      port: 15008
+      protocol: HBONE
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      port: 443
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+status:
+  conditions:
+    - type: Accepted
+      status: "True"
+      reason: Accepted
+      observedGeneration: 1
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: primary
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - matches:
+        - method: GET
+          path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: api
+          port: 8080
+    - matches:
+        - method: POST
+          path:
+            type: PathPrefix
+            value: /admin
+      backendRefs:
+        - name: admin
+          port: 8080
+status:
+  parents:
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: http}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: https}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: fallback
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - matches:
+        - method: GET
+          path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: web
+          port: 80
+status:
+  parents:
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: http}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: https}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}

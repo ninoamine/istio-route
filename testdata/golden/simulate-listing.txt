@@ -1,0 +1,13 @@
+Waypoint: mesh/waypoint (class istio-waypoint, validation confirmed)
+warning: local manifests are a partial view: resources not supplied in the input files are not considered
+scope: 1 Service-parented route(s) excluded (HTTPRoute parentRefs to the waypoint only)
+Attached HTTPRoutes:
+  shop/alpha
+    listener hbone: accepted
+    listener http: accepted
+  shop/bravo
+    listener hbone: unconfirmed (no Accepted status reported for this listener)
+    listener http: unconfirmed (no Accepted status reported for this listener)
+  shop/charlie
+    listener hbone: accepted
+    listener http: accepted

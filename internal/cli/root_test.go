@@ -187,6 +187,24 @@ func TestRootCommandWritesAnalysisToStdout(t *testing.T) {
 	}
 }
 
+func TestRootCommandDispatchesSimulateSubcommand(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	service := &fakeAnalysisService{}
+	command := NewRootCommand(service, stdout, stderr)
+	command.SetArgs([]string{"simulate", "-f", "../../testdata/manifests/simulate-impact.yaml", "-n", "mesh", "waypoint"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if service.calls != 0 {
+		t.Errorf("hostname analysis calls = %d, want 0", service.calls)
+	}
+	if !strings.Contains(stdout.String(), "Waypoint: mesh/waypoint") {
+		t.Errorf("stdout = %q, want simulation listing", stdout.String())
+	}
+}
+
 func TestRootCommandPassesStdinToOfflineAnalysis(t *testing.T) {
 	const manifest = "apiVersion: v1\nkind: Service\nmetadata:\n  name: api\n"
 	stdout := new(bytes.Buffer)

@@ -1,0 +1,450 @@
+{
+  "kind": "impact",
+  "source": {
+    "mode": "files",
+    "files": [
+      "../../testdata/manifests/simulate-impact.yaml"
+    ]
+  },
+  "waypoint": {
+    "namespace": "mesh",
+    "name": "waypoint",
+    "class": "istio-waypoint",
+    "validation": "confirmed",
+    "listeners": [
+      {
+        "name": "hbone",
+        "port": 15008,
+        "protocol": "HBONE"
+      },
+      {
+        "name": "http",
+        "port": 80,
+        "protocol": "HTTP"
+      },
+      {
+        "name": "https",
+        "port": 443,
+        "protocol": "HTTPS"
+      }
+    ]
+  },
+  "scope": {
+    "directHTTPRouteOnly": true,
+    "serviceParentedExcluded": 0
+  },
+  "selectedRoute": {
+    "namespace": "shop",
+    "name": "primary"
+  },
+  "entries": [
+    {
+      "listener": "hbone",
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 1
+      },
+      "region": {
+        "all": [
+          {
+            "atom": {
+              "dimension": "method",
+              "value": "GET"
+            }
+          },
+          {
+            "atom": {
+              "dimension": "path",
+              "matchType": "PathPrefix",
+              "value": "/api"
+            }
+          }
+        ]
+      },
+      "outcome": "still-covered",
+      "before": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "primary"
+          },
+          "ruleIndex": 1,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "api",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "after": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "fallback"
+          },
+          "ruleIndex": 1,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "web",
+              "port": 80
+            }
+          ]
+        }
+      },
+      "backendChanged": true,
+      "reasons": [
+        "traffic is served by a remaining rule"
+      ]
+    },
+    {
+      "listener": "hbone",
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 2
+      },
+      "region": {
+        "all": [
+          {
+            "atom": {
+              "dimension": "method",
+              "value": "POST"
+            }
+          },
+          {
+            "atom": {
+              "dimension": "path",
+              "matchType": "PathPrefix",
+              "value": "/admin"
+            }
+          }
+        ]
+      },
+      "outcome": "unrouted",
+      "before": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "primary"
+          },
+          "ruleIndex": 2,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "admin",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "after": {
+        "state": "none"
+      },
+      "reasons": [
+        "no remaining rule serves this traffic"
+      ]
+    },
+    {
+      "listener": "http",
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 1
+      },
+      "region": {
+        "all": [
+          {
+            "atom": {
+              "dimension": "method",
+              "value": "GET"
+            }
+          },
+          {
+            "atom": {
+              "dimension": "path",
+              "matchType": "PathPrefix",
+              "value": "/api"
+            }
+          }
+        ]
+      },
+      "outcome": "still-covered",
+      "before": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "primary"
+          },
+          "ruleIndex": 1,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "api",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "after": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "fallback"
+          },
+          "ruleIndex": 1,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "web",
+              "port": 80
+            }
+          ]
+        }
+      },
+      "backendChanged": true,
+      "reasons": [
+        "traffic is served by a remaining rule"
+      ]
+    },
+    {
+      "listener": "http",
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 2
+      },
+      "region": {
+        "all": [
+          {
+            "atom": {
+              "dimension": "method",
+              "value": "POST"
+            }
+          },
+          {
+            "atom": {
+              "dimension": "path",
+              "matchType": "PathPrefix",
+              "value": "/admin"
+            }
+          }
+        ]
+      },
+      "outcome": "unrouted",
+      "before": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "primary"
+          },
+          "ruleIndex": 2,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "admin",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "after": {
+        "state": "none"
+      },
+      "reasons": [
+        "no remaining rule serves this traffic"
+      ]
+    },
+    {
+      "listener": "https",
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 1
+      },
+      "region": {
+        "all": [
+          {
+            "atom": {
+              "dimension": "method",
+              "value": "GET"
+            }
+          },
+          {
+            "atom": {
+              "dimension": "path",
+              "matchType": "PathPrefix",
+              "value": "/api"
+            }
+          }
+        ]
+      },
+      "outcome": "still-covered",
+      "before": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "primary"
+          },
+          "ruleIndex": 1,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "api",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "after": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "fallback"
+          },
+          "ruleIndex": 1,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "web",
+              "port": 80
+            }
+          ]
+        }
+      },
+      "backendChanged": true,
+      "reasons": [
+        "traffic is served by a remaining rule"
+      ]
+    },
+    {
+      "listener": "https",
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 2
+      },
+      "region": {
+        "all": [
+          {
+            "atom": {
+              "dimension": "method",
+              "value": "POST"
+            }
+          },
+          {
+            "atom": {
+              "dimension": "path",
+              "matchType": "PathPrefix",
+              "value": "/admin"
+            }
+          }
+        ]
+      },
+      "outcome": "unrouted",
+      "before": {
+        "state": "provider",
+        "provider": {
+          "route": {
+            "namespace": "shop",
+            "name": "primary"
+          },
+          "ruleIndex": 2,
+          "backends": [
+            {
+              "namespace": "shop",
+              "name": "admin",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "after": {
+        "state": "none"
+      },
+      "reasons": [
+        "no remaining rule serves this traffic"
+      ]
+    }
+  ],
+  "ruleSummaries": [
+    {
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 1
+      },
+      "backends": [
+        {
+          "namespace": "shop",
+          "name": "api",
+          "port": 8080
+        }
+      ],
+      "outcomes": [
+        "still-covered"
+      ],
+      "counts": {
+        "still-covered": 3
+      },
+      "partial": false
+    },
+    {
+      "rule": {
+        "route": {
+          "namespace": "shop",
+          "name": "primary"
+        },
+        "index": 2
+      },
+      "backends": [
+        {
+          "namespace": "shop",
+          "name": "admin",
+          "port": 8080
+        }
+      ],
+      "outcomes": [
+        "unrouted"
+      ],
+      "counts": {
+        "unrouted": 3
+      },
+      "partial": false
+    }
+  ],
+  "totals": {
+    "unrouted": 3,
+    "still-covered": 3,
+    "no-change": 0,
+    "undetermined": 0
+  },
+  "warnings": [
+    "local manifests are a partial view: resources not supplied in the input files are not considered"
+  ]
+}

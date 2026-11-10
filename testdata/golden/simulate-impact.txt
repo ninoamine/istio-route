@@ -1,0 +1,44 @@
+Waypoint: mesh/waypoint (class istio-waypoint, validation confirmed)
+warning: local manifests are a partial view: resources not supplied in the input files are not considered
+Removing: shop/primary
+
+UNROUTED (3)
+  - listener hbone, rule shop/primary #2: (method=POST && path:PathPrefix=/admin)
+      before: shop/primary rule #2 → shop/admin:8080
+      reason: no remaining rule serves this traffic
+  - listener http, rule shop/primary #2: (method=POST && path:PathPrefix=/admin)
+      before: shop/primary rule #2 → shop/admin:8080
+      reason: no remaining rule serves this traffic
+  - listener https, rule shop/primary #2: (method=POST && path:PathPrefix=/admin)
+      before: shop/primary rule #2 → shop/admin:8080
+      reason: no remaining rule serves this traffic
+
+STILL COVERED (3)
+  - listener hbone, rule shop/primary #1: (method=GET && path:PathPrefix=/api)
+      before: shop/primary rule #1 → shop/api:8080
+      covered by: shop/fallback rule #1 → shop/web:80
+      backend changed: shop/api:8080 → shop/web:80
+      reason: traffic is served by a remaining rule
+  - listener http, rule shop/primary #1: (method=GET && path:PathPrefix=/api)
+      before: shop/primary rule #1 → shop/api:8080
+      covered by: shop/fallback rule #1 → shop/web:80
+      backend changed: shop/api:8080 → shop/web:80
+      reason: traffic is served by a remaining rule
+  - listener https, rule shop/primary #1: (method=GET && path:PathPrefix=/api)
+      before: shop/primary rule #1 → shop/api:8080
+      covered by: shop/fallback rule #1 → shop/web:80
+      backend changed: shop/api:8080 → shop/web:80
+      reason: traffic is served by a remaining rule
+
+UNDETERMINED (0)
+  none
+
+NO CHANGE (0)
+  none
+
+
+Rules:
+  shop/primary #1: still-covered=3
+  shop/primary #2: unrouted=3
+
+Totals: unrouted 3, still-covered 3, no-change 0, undetermined 0
