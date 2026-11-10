@@ -1,0 +1,22 @@
+flowchart LR
+  waypoint_e67befaec3ce["Waypoint mesh/waypoint (validation confirmed)"]
+  route_e498b0f8132d["Removing HTTPRoute shop/primary"]
+  waypoint_e67befaec3ce -.->|attached| route_e498b0f8132d
+  entry_d87be6efbfe9["still-covered: listener hbone, rule shop/primary #1, (method=GET &amp;&amp; path:PathPrefix=/api)"]
+  route_e498b0f8132d -->|backend changed| entry_d87be6efbfe9
+  provider_b5ff3da96e5f["Covered by shop/fallback rule #1"]
+  service_6fa133c44fed["Service shop/web:80"]
+  provider_b5ff3da96e5f --> service_6fa133c44fed
+  entry_d87be6efbfe9 -->|covered by| provider_b5ff3da96e5f
+  entry_c566504202fb["unrouted: listener hbone, rule shop/primary #2, (method=POST &amp;&amp; path:PathPrefix=/admin)"]
+  route_e498b0f8132d -->|unrouted| entry_c566504202fb
+  entry_16c840406d70["still-covered: listener http, rule shop/primary #1, (method=GET &amp;&amp; path:PathPrefix=/api)"]
+  route_e498b0f8132d -->|backend changed| entry_16c840406d70
+  entry_16c840406d70 -->|covered by| provider_b5ff3da96e5f
+  entry_d9b966d3632d["unrouted: listener http, rule shop/primary #2, (method=POST &amp;&amp; path:PathPrefix=/admin)"]
+  route_e498b0f8132d -->|unrouted| entry_d9b966d3632d
+  entry_cd76ee4c9ef5["still-covered: listener https, rule shop/primary #1, (method=GET &amp;&amp; path:PathPrefix=/api)"]
+  route_e498b0f8132d -->|backend changed| entry_cd76ee4c9ef5
+  entry_cd76ee4c9ef5 -->|covered by| provider_b5ff3da96e5f
+  entry_2ebc19d13af6["unrouted: listener https, rule shop/primary #2, (method=POST &amp;&amp; path:PathPrefix=/admin)"]
+  route_e498b0f8132d -->|unrouted| entry_2ebc19d13af6

@@ -110,6 +110,7 @@ func NewRootCommand(service AnalysisService, stdout, stderr io.Writer) *cobra.Co
 	cmd.InitDefaultVersionFlag()
 	cmd.AddCommand(newAuditCommand(NewDefaultGatewayAuditService(), stdout, stderr))
 	cmd.AddCommand(newTestCommand(stdout, stderr))
+	cmd.AddCommand(newSimulateCommand(NewDefaultSimulateService(), stdout, stderr))
 
 	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {
 		switch flags.Output {

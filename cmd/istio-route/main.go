@@ -21,24 +21,29 @@ func runWithService(args []string, stdout, stderr io.Writer, service cli.Analysi
 	command := cli.NewRootCommand(service, stdout, stderr)
 	command.SetArgs(args)
 	if err := command.Execute(); err != nil {
-		switch {
-		case errors.Is(err, cli.ErrTestInvalid):
-			return reportError(stderr, err, 2)
-		case errors.Is(err, cli.ErrTestFailure):
-			return reportError(stderr, err, 1)
-		case errors.Is(err, cli.ErrUsage):
-			return reportError(stderr, err, 2)
-		case errors.Is(err, cli.ErrHostnameNotFound):
-			return reportError(stderr, err, 3)
-		case errors.Is(err, cli.ErrGatewayNotFound):
-			return reportError(stderr, err, 3)
-		case errors.Is(err, cli.ErrAuditFindings):
-			return reportError(stderr, err, 4)
-		default:
-			return reportError(stderr, err, 1)
-		}
+		return reportError(stderr, err, exitCode(err))
 	}
 	return 0
+}
+
+// exitCode maps a command error to the process exit status: 2 usage, 3 target not found, 4 audit findings, 1 otherwise.
+func exitCode(err error) int {
+	switch {
+	case errors.Is(err, cli.ErrTestInvalid):
+		return 2
+	case errors.Is(err, cli.ErrTestFailure):
+		return 1
+	case errors.Is(err, cli.ErrUsage):
+		return 2
+	case errors.Is(err, cli.ErrHostnameNotFound),
+		errors.Is(err, cli.ErrGatewayNotFound),
+		errors.Is(err, cli.ErrRouteNotFound):
+		return 3
+	case errors.Is(err, cli.ErrAuditFindings):
+		return 4
+	default:
+		return 1
+	}
 }
 
 func reportError(stderr io.Writer, err error, code int) int {

@@ -193,6 +193,60 @@ Two overlapping rules that are equal on every criterion and tie-breaker produce 
 `undecided-route-rule-overlap` info finding on each rule, because no winner can be
 determined.
 
+## Simulate removing an HTTPRoute
+
+The `simulate` subcommand explains what would stop or change for traffic on an
+ambient waypoint if one of its HTTPRoutes were removed. Without `--route` it lists
+the HTTPRoutes eligible for simulation. With `--route <namespace>/<name>` it reports
+the impact on each listener and rule:
+
+```sh
+./istio-route simulate -f testdata/manifests/simulate-impact.yaml -n mesh waypoint
+./istio-route simulate -f testdata/manifests/simulate-impact.yaml -n mesh \
+  --route shop/primary waypoint
+./istio-route simulate -f testdata/manifests/simulate-impact.yaml -n mesh \
+  --route shop/primary --output json waypoint
+./istio-route simulate --context staging -n mesh --route shop/primary waypoint
+```
+
+`-f`/`--file` reads manifests without contacting a cluster; `-f -` reads one YAML
+stream from stdin, and the input files are never modified. Live mode uses the
+selected kubeconfig context and needs `-n` when that context has no default
+namespace. `--route` is always written with an explicit namespace. The command
+supports `text`, `json`, `yaml`, and `mermaid`, and it honors `--no-color` and
+`NO_COLOR` the same way `analyze` does.
+
+Limitations:
+
+- Only HTTPRoutes directly parented to the waypoint are counted as coverage or as
+  replacements. Service-parented routes are excluded and reported as a count, and
+  GRPCRoutes are excluded.
+- HBONE, HTTP, and HTTPS listeners are applicable. When a restriction such as
+  `allowedRoutes` cannot be established, the attachment is `unconfirmed` rather than
+  rejected. An HBONE-only waypoint is valid; a waypoint with no applicable listener
+  reports every route as ineligible.
+- A waypoint that names a GatewayClass other than `istio-waypoint` is a usage
+  error. A missing `istio-waypoint` GatewayClass definition makes the waypoint
+  `unconfirmed` and its results provisional.
+- Local results describe only the supplied snapshot. Live reads are not atomic, so
+  the cluster may change between requests.
+- `undetermined` means the input does not establish the outcome. The report then
+  shows provisional details instead of a definitive result, and it does not count
+  as coverage.
+- Istio-only manifests fail with status `1`, because they contain no Gateway API
+  resources. Namespace-less Gateways or routes that the simulation depends on also
+  fail with status `1`; `--namespace` does not fill them in.
+
+Live mode reads Gateways, GatewayClasses, the selected waypoint's direct
+HTTPRoutes, and Namespaces only when a listener uses a namespace selector. It does
+not read Services, Pods, or EndpointSlices, and it has no write verbs. The shared
+sample [`deploy/rbac.yaml`](./deploy/rbac.yaml) also grants Services, Pods, and
+EndpointSlices read access for the trace and audit commands, which `simulate` does
+not use.
+
+`simulate` is a reserved root command name, like `analyze` and `test`; other
+hostname arguments keep the existing trace behavior.
+
 ## Test rendered routing behavior
 
 The `test` subcommand evaluates Gherkin feature files against rendered manifests
@@ -334,6 +388,10 @@ manifest files supplied on the command line and makes no cluster requests.
 | `istio-route analyze` | `2` | Invalid command usage |
 | `istio-route analyze` | `3` | Gateway or waypoint not found |
 | `istio-route analyze` | `4` | Audit completed with findings |
+| `istio-route simulate` | `0` | Completed, including listings and unrouted or undetermined traffic |
+| `istio-route simulate` | `1` | Runtime, source, parsing, missing Gateway API resources, missing namespace, or output error |
+| `istio-route simulate` | `2` | Invalid usage, non-waypoint target, ambiguous waypoint, or ineligible route |
+| `istio-route simulate` | `3` | Waypoint or HTTPRoute not found |
 | Hostname trace | `0` | Analysis succeeded and a matching route was found |
 | Hostname trace | `1` | Runtime, source, parsing, or rendering error |
 | Hostname trace | `2` | Invalid command usage |
@@ -346,8 +404,9 @@ with findings; it is not treated as hostname-not-found.
 
 The project uses spec-driven development. Feature requirements, design decisions,
 CLI contracts, implementation tasks, and validation notes are kept under
-[`specs/001-hostname-routing/`](./specs/001-hostname-routing/) and
-[`specs/002-routing-behavior-testing/`](./specs/002-routing-behavior-testing/);
+[`specs/001-hostname-routing/`](./specs/001-hostname-routing/),
+[`specs/002-routing-behavior-testing/`](./specs/002-routing-behavior-testing/), and
+[`specs/005-httproute-impact-simulation/`](./specs/005-httproute-impact-simulation/);
 the shared templates, workflow helpers, and project principles live in
 [`.specify/`](./.specify/).
 For a feature change, contributors can review those documents before editing,

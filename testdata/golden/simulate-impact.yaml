@@ -1,0 +1,280 @@
+entries:
+- after:
+    provider:
+      backends:
+      - name: web
+        namespace: shop
+        port: 80
+      route:
+        name: fallback
+        namespace: shop
+      ruleIndex: 1
+    state: provider
+  backendChanged: true
+  before:
+    provider:
+      backends:
+      - name: api
+        namespace: shop
+        port: 8080
+      route:
+        name: primary
+        namespace: shop
+      ruleIndex: 1
+    state: provider
+  listener: hbone
+  outcome: still-covered
+  reasons:
+  - traffic is served by a remaining rule
+  region:
+    all:
+    - atom:
+        dimension: method
+        value: GET
+    - atom:
+        dimension: path
+        matchType: PathPrefix
+        value: /api
+  rule:
+    index: 1
+    route:
+      name: primary
+      namespace: shop
+- after:
+    state: none
+  before:
+    provider:
+      backends:
+      - name: admin
+        namespace: shop
+        port: 8080
+      route:
+        name: primary
+        namespace: shop
+      ruleIndex: 2
+    state: provider
+  listener: hbone
+  outcome: unrouted
+  reasons:
+  - no remaining rule serves this traffic
+  region:
+    all:
+    - atom:
+        dimension: method
+        value: POST
+    - atom:
+        dimension: path
+        matchType: PathPrefix
+        value: /admin
+  rule:
+    index: 2
+    route:
+      name: primary
+      namespace: shop
+- after:
+    provider:
+      backends:
+      - name: web
+        namespace: shop
+        port: 80
+      route:
+        name: fallback
+        namespace: shop
+      ruleIndex: 1
+    state: provider
+  backendChanged: true
+  before:
+    provider:
+      backends:
+      - name: api
+        namespace: shop
+        port: 8080
+      route:
+        name: primary
+        namespace: shop
+      ruleIndex: 1
+    state: provider
+  listener: http
+  outcome: still-covered
+  reasons:
+  - traffic is served by a remaining rule
+  region:
+    all:
+    - atom:
+        dimension: method
+        value: GET
+    - atom:
+        dimension: path
+        matchType: PathPrefix
+        value: /api
+  rule:
+    index: 1
+    route:
+      name: primary
+      namespace: shop
+- after:
+    state: none
+  before:
+    provider:
+      backends:
+      - name: admin
+        namespace: shop
+        port: 8080
+      route:
+        name: primary
+        namespace: shop
+      ruleIndex: 2
+    state: provider
+  listener: http
+  outcome: unrouted
+  reasons:
+  - no remaining rule serves this traffic
+  region:
+    all:
+    - atom:
+        dimension: method
+        value: POST
+    - atom:
+        dimension: path
+        matchType: PathPrefix
+        value: /admin
+  rule:
+    index: 2
+    route:
+      name: primary
+      namespace: shop
+- after:
+    provider:
+      backends:
+      - name: web
+        namespace: shop
+        port: 80
+      route:
+        name: fallback
+        namespace: shop
+      ruleIndex: 1
+    state: provider
+  backendChanged: true
+  before:
+    provider:
+      backends:
+      - name: api
+        namespace: shop
+        port: 8080
+      route:
+        name: primary
+        namespace: shop
+      ruleIndex: 1
+    state: provider
+  listener: https
+  outcome: still-covered
+  reasons:
+  - traffic is served by a remaining rule
+  region:
+    all:
+    - atom:
+        dimension: method
+        value: GET
+    - atom:
+        dimension: path
+        matchType: PathPrefix
+        value: /api
+  rule:
+    index: 1
+    route:
+      name: primary
+      namespace: shop
+- after:
+    state: none
+  before:
+    provider:
+      backends:
+      - name: admin
+        namespace: shop
+        port: 8080
+      route:
+        name: primary
+        namespace: shop
+      ruleIndex: 2
+    state: provider
+  listener: https
+  outcome: unrouted
+  reasons:
+  - no remaining rule serves this traffic
+  region:
+    all:
+    - atom:
+        dimension: method
+        value: POST
+    - atom:
+        dimension: path
+        matchType: PathPrefix
+        value: /admin
+  rule:
+    index: 2
+    route:
+      name: primary
+      namespace: shop
+kind: impact
+ruleSummaries:
+- backends:
+  - name: api
+    namespace: shop
+    port: 8080
+  counts:
+    still-covered: 3
+  outcomes:
+  - still-covered
+  partial: false
+  rule:
+    index: 1
+    route:
+      name: primary
+      namespace: shop
+- backends:
+  - name: admin
+    namespace: shop
+    port: 8080
+  counts:
+    unrouted: 3
+  outcomes:
+  - unrouted
+  partial: false
+  rule:
+    index: 2
+    route:
+      name: primary
+      namespace: shop
+scope:
+  directHTTPRouteOnly: true
+  serviceParentedExcluded: 0
+selectedRoute:
+  name: primary
+  namespace: shop
+source:
+  files:
+  - ../../testdata/manifests/simulate-impact.yaml
+  mode: files
+totals:
+  no-change: 0
+  still-covered: 3
+  undetermined: 0
+  unrouted: 3
+warnings:
+- 'local manifests are a partial view: resources not supplied in the input files are
+  not considered'
+waypoint:
+  class: istio-waypoint
+  listeners:
+  - name: hbone
+    port: 15008
+    protocol: HBONE
+  - name: http
+    port: 80
+    protocol: HTTP
+  - name: https
+    port: 443
+    protocol: HTTPS
+  name: waypoint
+  namespace: mesh
+  validation: confirmed

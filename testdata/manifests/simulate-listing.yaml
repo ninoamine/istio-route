@@ -1,0 +1,256 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: istio-waypoint
+spec:
+  controllerName: istio.io/gateway-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: mesh
+  generation: 1
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: hbone
+      port: 15008
+      protocol: HBONE
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+status:
+  conditions:
+    - type: Accepted
+      status: "True"
+      reason: Accepted
+      observedGeneration: 1
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: other
+  namespace: mesh
+  generation: 1
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: hbone
+      port: 15008
+      protocol: HBONE
+      allowedRoutes:
+        namespaces:
+          from: All
+status:
+  conditions:
+    - type: Accepted
+      status: "True"
+      reason: Accepted
+      observedGeneration: 1
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: alpha
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /alpha
+      backendRefs:
+        - name: alpha
+          port: 8080
+status:
+  parents:
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: http}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+---
+# No status: the listener state cannot be established, so the route is unconfirmed.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bravo
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /bravo
+      backendRefs:
+        - name: bravo
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: charlie
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /charlie
+      backendRefs:
+        - name: charlie
+          port: 8080
+status:
+  parents:
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: http}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rejected
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /rejected
+      backendRefs:
+        - name: rejected
+          port: 8080
+status:
+  parents:
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "False", reason: NotAllowedByListeners, observedGeneration: 1}
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: http}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "False", reason: NotAllowedByListeners, observedGeneration: 1}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: east
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: other
+      namespace: mesh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /east
+      backendRefs:
+        - name: east
+          port: 8080
+status:
+  parents:
+    - parentRef: {name: other, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: west
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: other
+      namespace: mesh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /west
+      backendRefs:
+        - name: west
+          port: 8080
+status:
+  parents:
+    - parentRef: {name: other, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
+---
+# Service-parented: excluded from attachment and disclosed as a count.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: legacy
+  namespace: app
+  generation: 1
+spec:
+  parentRefs:
+    - kind: Service
+      name: api
+      port: 8080
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /legacy
+      backendRefs:
+        - name: legacy
+          port: 8080
+---
+# GRPCRoute: not an HTTPRoute, so it is never listed.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: grpc
+  namespace: shop
+  generation: 1
+spec:
+  parentRefs:
+    - name: waypoint
+      namespace: mesh
+  rules:
+    - backendRefs:
+        - name: grpc
+          port: 9000
+status:
+  parents:
+    - parentRef: {name: waypoint, namespace: mesh, sectionName: hbone}
+      controllerName: istio.io/gateway-controller
+      conditions:
+        - {type: Accepted, status: "True", reason: Accepted, observedGeneration: 1}
